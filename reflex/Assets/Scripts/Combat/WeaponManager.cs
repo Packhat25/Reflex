@@ -105,12 +105,28 @@ public class WeaponManager : MonoBehaviour
         return playerManager.canAttack;
     }
 
-
     private void ExecuteAttack()
     {
         // 1. Cache the reference for performance and readability
         WeaponData data = playerManager.weaponData;
         if (data == null || data.comboChain.Length == 0) return;
+        // ---SOFT LOCK-ON / SNAP ROTATION ---
+        // We do this BEFORE locking the state so the player "snaps" to face the target 
+        // immediately as they press the button.
+        float lockOnRadius = 10f; // Adjust this to match your weapon's reach
+        Transform target = GetNearestEnemy(lockOnRadius);
+
+        if (target != null)
+        {
+            Vector3 direction = target.position - transform.position;
+            direction.y = 0; // Keep the player level (prevent tilting up/down)
+
+            if (direction != Vector3.zero)
+            {
+                transform.rotation = Quaternion.LookRotation(direction);
+            }
+        }
+        // ------------------------------------------
 
         // 2. Set State
         playerManager.canAttack = false;
@@ -128,7 +144,9 @@ public class WeaponManager : MonoBehaviour
         AttackStep step = data.comboChain[playerManager.currentComboIndex - 1];
 
         // 5. Execution
-        playerManager.comboTime = data.comboResetTime;
+        // Note: We use the card window bonus we set up earlier!
+        playerManager.comboTime = data.comboResetTime + playerManager.cardComboWindowBonus;
+
         UpdateHitboxTransform(step);
         playerVisuals.PlayAttack(playerManager.currentComboIndex);
 
@@ -153,6 +171,7 @@ public class WeaponManager : MonoBehaviour
         Collider[] hitEnemies = Physics.OverlapBox(center, halfExtents, orientation, enemyLayer);
         AttackStep step = playerManager.weaponData.comboChain[playerManager.currentComboIndex - 1];
         float finalDamage = step.attackDamage * playerManager.TotalDamageMultiplier;
+        //chance for crit
         if (UnityEngine.Random.value < playerManager.FinalCritChance)
         {
             finalDamage *= 2;
@@ -202,5 +221,27 @@ public class WeaponManager : MonoBehaviour
             // Draw a wireframe cube that matches the hitbox scale
             Gizmos.DrawWireCube(Vector3.zero, Vector3.one);
         }
+    }
+    private Transform GetNearestEnemy(float radius)
+    {
+        // 1. Find all colliders in range
+        Collider[] hitColliders = Physics.OverlapSphere(transform.position, radius);
+        Transform closestEnemy = null;
+        float closestDistance = Mathf.Infinity;
+
+        foreach (var hitCollider in hitColliders)
+        {
+            // 2. Filter by Tag (Ensure your enemies have the "Enemy" tag)
+            if (hitCollider.CompareTag("Enemy"))
+            {
+                float distance = Vector3.Distance(transform.position, hitCollider.transform.position);
+                if (distance < closestDistance)
+                {
+                    closestDistance = distance;
+                    closestEnemy = hitCollider.transform;
+                }
+            }
+        }
+        return closestEnemy;
     }
 }

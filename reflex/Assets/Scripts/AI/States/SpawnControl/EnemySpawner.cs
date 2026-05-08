@@ -53,6 +53,8 @@ public class EnemySpawner : MonoBehaviour
             offset.y = spawnHeight;  // Use the configurable spawn height
             Vector3 spawnPosition = transform.position + offset;
             GameObject enemy = Instantiate(enemyPrefab, spawnPosition, transform.rotation);
+            Transform hitbox = enemy.transform.Find("Hurt Box");
+            hitbox.tag="Enemy";            
             _currentEnemies.Add(enemy);
         }
 
