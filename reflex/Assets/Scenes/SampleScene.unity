@@ -336,7 +336,7 @@ SpriteRenderer:
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 1.0961539, y: 2.25}
+  m_Size: {x: 4.076923, y: 2.7307692}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
@@ -1117,7 +1117,7 @@ MonoBehaviour:
   canGoToIdle: 1
   currentComboIndex: 0
   comboTime: 0
-  weaponData: {fileID: 11400000, guid: 59bc94e2d26edbe4d8e20e062a55949d, type: 2}
+  weaponData: {fileID: 11400000, guid: d0abc0b86a659514a80faf42f6f17388, type: 2}
   playerInput: {fileID: 204850543}
   stats: {fileID: 11400000, guid: 99dc67199f639ba47a150587df7b0e19, type: 2}
   permanentAtkBonus: 0
