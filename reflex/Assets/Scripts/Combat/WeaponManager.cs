@@ -131,6 +131,7 @@ public class WeaponManager : MonoBehaviour
         // 2. Set State
         playerManager.canAttack = false;
         playerManager.isAttacking = true;
+        EmotionEngine.Instance.RecordAttackStarted();
         startResetTime = false; // Pause the cooldown timer during the swing
 
         // 3. Logic: Increment and Wrap (Loop) the combo
@@ -185,6 +186,7 @@ public class WeaponManager : MonoBehaviour
             if (hurtbox != null)
             {
                 hurtbox.ReceiveDamage(finalDamage);
+                EmotionEngine.Instance.RecordEnemyHit(finalDamage);
             }
 
             // VAMPIRIC FOCUS (Heal on Hit)

@@ -35,11 +35,28 @@ public class EnemyController : MonoBehaviour
     private Vector3 _lastPosition;
     private float _stuckTimer;
 
+    [Header("Emotion Adaptation")]
+    public float aggressiveSpeedMultiplier = 0.9f;
+    public float aggressiveAttackCooldownMultiplier = 1.25f;
+    public float aggressiveVisionRangeMultiplier = 1.15f;
+    public float calmSpeedMultiplier = 1.2f;
+    public float calmAttackCooldownMultiplier = 0.85f;
+    public float calmVisionRangeMultiplier = 0.95f;
+
     [Header("Swarm Settings")]
     public string enemyType;
     [HideInInspector] public bool isElite = false;
+    private float _baseSpeed;
+    private float _baseAttackCooldown;
+    private float _baseVisionRange;
+    private bool _baseStatsCached;
 
     public Vector3 GetHomePosition() => _homePosition;
+
+    void OnEnable()
+    {
+        EmotionEngine.EmotionChanged += HandleEmotionChanged;
+    }
 
     void Start()
     {
@@ -84,6 +101,8 @@ public class EnemyController : MonoBehaviour
             animator = GetComponentInChildren<Animator>();
         }
 
+        CacheBaseStats();
+        ApplyEmotionProfile(EmotionEngine.Instance.CurrentEmotion);
         SwarmManager.RegisterEnemy(enemyType, this);
         ChangeState(new IdleState(this));
     }
@@ -203,6 +222,7 @@ public class EnemyController : MonoBehaviour
 
             if (isPlayer)
             {
+                EmotionEngine.Instance.RecordEnemyEncounter(this);
                 lastKnownPlayerPosition = player.position;
                 return true;
             }
@@ -256,6 +276,47 @@ public class EnemyController : MonoBehaviour
         if (laserLine != null) laserLine.enabled = false;
     }
 
+    private void HandleEmotionChanged(PlayerEmotionState emotionState, EmotionProfileSnapshot snapshot)
+    {
+        ApplyEmotionProfile(emotionState);
+    }
+
+    private void CacheBaseStats()
+    {
+        if (_baseStatsCached)
+        {
+            return;
+        }
+
+        _baseSpeed = speed;
+        _baseAttackCooldown = attackCooldown;
+        _baseVisionRange = visionRange;
+        _baseStatsCached = true;
+    }
+
+    private void ApplyEmotionProfile(PlayerEmotionState emotionState)
+    {
+        CacheBaseStats();
+
+        if (emotionState == PlayerEmotionState.Aggressive)
+        {
+            speed = _baseSpeed * aggressiveSpeedMultiplier;
+            attackCooldown = _baseAttackCooldown * aggressiveAttackCooldownMultiplier;
+            visionRange = _baseVisionRange * aggressiveVisionRangeMultiplier;
+        }
+        else
+        {
+            speed = _baseSpeed * calmSpeedMultiplier;
+            attackCooldown = _baseAttackCooldown * calmAttackCooldownMultiplier;
+            visionRange = _baseVisionRange * calmVisionRangeMultiplier;
+        }
+
+        if (agent != null)
+        {
+            agent.speed = speed;
+        }
+    }
+
 
     public void TakeDamage(float amount)
     {
@@ -277,6 +338,7 @@ public class EnemyController : MonoBehaviour
 
     void OnDisable()
     {
+        EmotionEngine.EmotionChanged -= HandleEmotionChanged;
         SwarmManager.UnregisterEnemy(enemyType, this);
     }
 

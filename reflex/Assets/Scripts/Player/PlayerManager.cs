@@ -73,6 +73,7 @@ public class PlayerManager : MonoBehaviour
     {
         if (isDead) return;
         currentHealth -= amount;
+        EmotionEngine.Instance.RecordDamageTaken(amount);
         Debug.Log($"HP: {currentHealth}/{MaxHealth}");
         if (currentHealth <= 0) Die();
     }
@@ -86,6 +87,7 @@ public class PlayerManager : MonoBehaviour
     {
         isDead = true;
         canAttack = false;
+        EmotionEngine.Instance.RecordDeath();
         Debug.Log("<color=red>Player is Dead</color>");
     }
 

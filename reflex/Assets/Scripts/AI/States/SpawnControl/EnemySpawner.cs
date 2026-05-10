@@ -12,6 +12,7 @@ public class EnemySpawner : MonoBehaviour
 
     private readonly List<GameObject> _currentEnemies = new List<GameObject>();
     private float _timer;
+    private bool _waveClearReported;
 
     void Start()
     {
@@ -24,6 +25,12 @@ public class EnemySpawner : MonoBehaviour
 
         if (_currentEnemies.Count == 0)
         {
+            if (!_waveClearReported)
+            {
+                EmotionEngine.Instance.RecordRoomCleared();
+                _waveClearReported = true;
+            }
+
             _timer -= Time.deltaTime;
             if (_timer <= 0f)
             {
@@ -46,19 +53,25 @@ public class EnemySpawner : MonoBehaviour
     private void SpawnWave()
     {
         _currentEnemies.Clear();
+        _waveClearReported = false;
+        EmotionEngine.Instance.BeginRoom();
 
-        for (int i = 0; i < spawnCount; i++)
+        int adjustedSpawnCount = EmotionEngine.Instance.GetRecommendedSpawnCount(spawnCount);
+        for (int i = 0; i < adjustedSpawnCount; i++)
         {
             Vector3 offset = Random.insideUnitSphere * spawnRadius;
             offset.y = spawnHeight;  // Use the configurable spawn height
             Vector3 spawnPosition = transform.position + offset;
             GameObject enemy = Instantiate(enemyPrefab, spawnPosition, transform.rotation);
             Transform hitbox = enemy.transform.Find("Hurt Box");
-            hitbox.tag="Enemy";            
+            if (hitbox != null)
+            {
+                hitbox.tag = "Enemy";
+            }
             _currentEnemies.Add(enemy);
         }
 
         _timer = respawnDelay;
-        Debug.Log($"<color=green>SPAWNED WAVE OF {spawnCount} ENEMIES</color>");
+        Debug.Log($"<color=green>SPAWNED WAVE OF {adjustedSpawnCount} ENEMIES ({EmotionEngine.Instance.CurrentEmotion})</color>");
     }
 }

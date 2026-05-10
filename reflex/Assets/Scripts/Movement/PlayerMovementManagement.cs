@@ -121,6 +121,10 @@ public class PlayerMovementManagement : MonoBehaviour
         // 5. Final Move
         Vector3 finalVelocity = currentVelocity + (Vector3.up * verticalVelocity);
         playerController.Move(finalVelocity * Time.deltaTime);
+
+        bool isMoving = moveDirection.magnitude > 0.1f;
+        bool isIdle = !isMoving && !playerManager.isAttacking && !isDashing;
+        EmotionEngine.Instance.RecordMovement(currentVelocity.magnitude, isMoving, isIdle);
     }
 
     private void RotateTowards(Vector3 direction)
