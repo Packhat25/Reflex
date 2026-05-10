@@ -26757,6 +26757,12 @@ MonoBehaviour:
   currentHealth: 15
   attackRange: 2
   attackCooldown: 1.5
+  aggressiveSpeedMultiplier: 0.9
+  aggressiveAttackCooldownMultiplier: 1.25
+  aggressiveVisionRangeMultiplier: 1.15
+  calmSpeedMultiplier: 1.2
+  calmAttackCooldownMultiplier: 0.85
+  calmVisionRangeMultiplier: 0.95
   enemyType: 
   isElite: 0
   laserLine: {fileID: 0}
@@ -32032,7 +32038,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2794070336112507877, guid: 7c568165dea999542b4dcb8a7407bb21, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 2794070336112507877, guid: 7c568165dea999542b4dcb8a7407bb21, type: 3}
       propertyPath: m_TagString
@@ -40305,7 +40311,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7944521560814825142, guid: 3f16148ceae8dc64d84d129c75fdc81a, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
