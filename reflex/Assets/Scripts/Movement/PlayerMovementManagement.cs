@@ -12,6 +12,9 @@ public class PlayerMovementManagement : MonoBehaviour
 
     [Header("Movement Settings")]
     [SerializeField] private float rotationSpeed = 10f;
+    
+    [Header("VFX")]
+    public TrailRenderer dashTrail;
 
     public Vector2 moveInput { get; private set; }
     private Vector3 currentVelocity;
@@ -75,6 +78,8 @@ public class PlayerMovementManagement : MonoBehaviour
         isDashing = true;
         lastDashTime = Time.time;
 
+        if (dashTrail != null) dashTrail.emitting = true;
+
         Vector3 dashDir = CameraDirectionLogic.GetRelativeDirection(moveInput, Camera.main);
         if (dashDir.magnitude < 0.1f) dashDir = transform.forward;
 
@@ -87,7 +92,7 @@ public class PlayerMovementManagement : MonoBehaviour
             playerController.Move(dashDir * totalDashSpeed * Time.deltaTime);
             yield return null;
         }
-
+        if (dashTrail != null) dashTrail.emitting = false;
         isDashing = false;
         currentVelocity = dashDir * GetCurrentSpeed();
     }
