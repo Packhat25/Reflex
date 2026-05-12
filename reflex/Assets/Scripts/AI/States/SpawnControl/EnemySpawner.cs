@@ -13,6 +13,7 @@ public class EnemySpawner : MonoBehaviour
     private readonly List<GameObject> _currentEnemies = new List<GameObject>();
     private float _timer;
     private bool _waveClearReported;
+    private bool _waitingForRoomToClear;
 
     void Start()
     {
@@ -27,8 +28,20 @@ public class EnemySpawner : MonoBehaviour
         {
             if (!_waveClearReported)
             {
-                EmotionEngine.Instance.RecordRoomCleared();
+                EmotionEngine.Instance.RecordRoomCleared(this);
                 _waveClearReported = true;
+                _waitingForRoomToClear = true;
+            }
+
+            if (_waitingForRoomToClear)
+            {
+                if (EmotionEngine.Instance.IsRoomActive)
+                {
+                    return;
+                }
+
+                _waitingForRoomToClear = false;
+                _timer = respawnDelay;
             }
 
             _timer -= Time.deltaTime;
@@ -54,9 +67,10 @@ public class EnemySpawner : MonoBehaviour
     {
         _currentEnemies.Clear();
         _waveClearReported = false;
+        _waitingForRoomToClear = false;
 
         int adjustedSpawnCount = EmotionDirector.Instance.GetRecommendedSpawnCount(spawnCount);
-        EmotionEngine.Instance.BeginRoom(spawnCount, adjustedSpawnCount);
+        EmotionEngine.Instance.BeginRoom(this, spawnCount, adjustedSpawnCount);
 
         for (int i = 0; i < adjustedSpawnCount; i++)
         {
@@ -73,6 +87,15 @@ public class EnemySpawner : MonoBehaviour
         }
 
         _timer = respawnDelay;
-        Debug.Log($"<color=green>SPAWNED WAVE OF {adjustedSpawnCount} ENEMIES ({EmotionDirector.Instance.CurrentDirective.strategy})</color>");
+        Debug.Log($"<color=green>SPAWNED WAVE OF {adjustedSpawnCount} ENEMIES ({EmotionDirector.Instance.CurrentDirective.strategy}); active spawners: {EmotionEngine.Instance.ActiveSpawnerCount}</color>");
+    }
+
+    private void OnDisable()
+    {
+        if (!_waveClearReported && EmotionEngine.HasInstance)
+        {
+            EmotionEngine.Instance.RecordRoomCleared(this);
+            _waveClearReported = true;
+        }
     }
 }

@@ -67,13 +67,14 @@ public class EmotionDebugHUD : MonoBehaviour
         EmotionProfileSnapshot snapshot = engine.CurrentSnapshot;
         EmotionRoomReport lastRoom = engine.LastRoomReport;
 
-        Rect area = new Rect(Padding, Padding, Width, lastRoom.roomNumber > 0 ? 530f : 430f);
+        Rect area = new Rect(Padding, Padding, Width, lastRoom.roomNumber > 0 ? 550f : 450f);
         GUILayout.BeginArea(area, GUIContent.none, _panelStyle);
 
         GUILayout.Label("EMOTION ENGINE", _titleStyle);
         DrawLine($"Profile: {snapshot.state}");
         DrawLine($"Aggression: {snapshot.aggressionScore:0.00}");
         DrawLine($"Room active: {(engine.IsRoomActive ? "yes" : "no")}");
+        DrawLine($"Active spawners: {snapshot.activeSpawnerCount}");
         GUILayout.Space(6f);
 
         GUILayout.Label("Director", _mutedStyle);
@@ -107,6 +108,7 @@ public class EmotionDebugHUD : MonoBehaviour
             DrawLine($"Profile: {lastRoom.emotionBefore} -> {lastRoom.emotionAfter}");
             DrawLine($"Score: {lastRoom.scoreBefore:0.00} -> {lastRoom.scoreAfter:0.00}");
             DrawLine($"Duration: {lastRoom.duration:0.0}s");
+            DrawLine($"Spawners: {lastRoom.spawnerCount}");
             DrawLine($"Spawns: {lastRoom.baseSpawnCount} -> {lastRoom.adjustedSpawnCount}");
             DrawLine($"Damage / deaths: {lastRoom.damageTaken:0.0} / {lastRoom.deathCount}");
             DrawLine($"Seen / attacks / hits: {lastRoom.enemiesEncountered} / {lastRoom.attacksPerformed} / {lastRoom.enemyHits}");

@@ -21,6 +21,7 @@ public struct EmotionProfileSnapshot
     public float timeRunning;
     public float timeIdle;
     public float averageMovementSpeed;
+    public int activeSpawnerCount;
     public float currentRoomTime;
     public float lastRoomClearTime;
 }
@@ -34,6 +35,7 @@ public struct EmotionRoomReport
     public float scoreBefore;
     public float scoreAfter;
     public float duration;
+    public int spawnerCount;
     public int baseSpawnCount;
     public int adjustedSpawnCount;
     public float damageTaken;
@@ -51,7 +53,16 @@ public class EmotionEngine : MonoBehaviour
     public static event Action<PlayerEmotionState, EmotionProfileSnapshot> EmotionChanged;
     public static event Action<EmotionRoomReport> RoomEvaluated;
 
+    private sealed class ActiveRoomContributor
+    {
+        public string name;
+        public int baseSpawnCount;
+        public int adjustedSpawnCount;
+    }
+
     private static EmotionEngine _instance;
+
+    public static bool HasInstance => _instance != null;
 
     public static EmotionEngine Instance
     {
@@ -99,9 +110,11 @@ public class EmotionEngine : MonoBehaviour
     public float AggressionScore { get; private set; }
     public EmotionProfileSnapshot CurrentSnapshot => BuildSnapshot();
     public EmotionRoomReport LastRoomReport { get; private set; }
-    public bool IsRoomActive => _roomTimerRunning;
+    public bool IsRoomActive => _activeRoomContributors.Count > 0;
+    public int ActiveSpawnerCount => _activeRoomContributors.Count;
 
     private readonly HashSet<int> _encounteredEnemyIds = new HashSet<int>();
+    private readonly Dictionary<int, ActiveRoomContributor> _activeRoomContributors = new Dictionary<int, ActiveRoomContributor>();
     private float _damageTaken;
     private int _deathCount;
     private int _attacksPerformed;
@@ -117,6 +130,8 @@ public class EmotionEngine : MonoBehaviour
     private int _roomsCleared;
     private int _currentRoomBaseSpawnCount;
     private int _currentRoomAdjustedSpawnCount;
+    private int _currentRoomSpawnerCount;
+    private int _nextAnonymousRoomId = -1;
     private EmotionProfileSnapshot _roomStartSnapshot;
     private PlayerEmotionState _roomStartEmotion;
     private float _roomStartScore;
@@ -174,41 +189,53 @@ public class EmotionEngine : MonoBehaviour
         BeginRoom(0, 0);
     }
 
-    public void BeginRoom(int baseSpawnCount, int adjustedSpawnCount)
+    public int BeginRoom(int baseSpawnCount, int adjustedSpawnCount)
     {
-        _currentRoomTime = 0f;
-        _roomTimerRunning = true;
-        _currentRoomBaseSpawnCount = baseSpawnCount;
-        _currentRoomAdjustedSpawnCount = adjustedSpawnCount;
-        _roomStartSnapshot = BuildSnapshot();
-        _roomStartEmotion = CurrentEmotion;
-        _roomStartScore = AggressionScore;
-        _roomStartMovementSpeedTotal = _movementSpeedTotal;
-        _roomStartMovementSamples = _movementSamples;
+        return BeginRoom(CreateAnonymousRoomId(), "Room", baseSpawnCount, adjustedSpawnCount);
+    }
+
+    public int BeginRoom(UnityEngine.Object source, int baseSpawnCount, int adjustedSpawnCount)
+    {
+        if (source == null)
+        {
+            return BeginRoom(baseSpawnCount, adjustedSpawnCount);
+        }
+
+        return BeginRoom(source.GetInstanceID(), source.name, baseSpawnCount, adjustedSpawnCount);
     }
 
     public void RecordRoomCleared()
     {
-        if (!_roomTimerRunning)
+        if (_activeRoomContributors.Count == 0)
         {
             return;
         }
 
-        float clearDuration = _currentRoomTime;
-        _lastRoomClearTime = clearDuration;
-        _roomTimerRunning = false;
-        EvaluateEmotion(true);
-
-        _roomsCleared++;
-        LastRoomReport = BuildRoomReport(clearDuration);
-        RoomEvaluated?.Invoke(LastRoomReport);
-
-        if (logEmotionChanges)
+        if (_activeRoomContributors.Count > 1)
         {
-            Debug.Log($"Room {_roomsCleared} evaluated: {LastRoomReport.emotionBefore} -> {LastRoomReport.emotionAfter} ({LastRoomReport.scoreBefore:0.00} -> {LastRoomReport.scoreAfter:0.00})");
+            Debug.LogWarning("EmotionEngine.RecordRoomCleared() was called without a source while multiple spawners are active. Use RecordRoomCleared(source) so the correct wave can be cleared.");
+            return;
         }
 
-        _currentRoomTime = 0f;
+        int onlySourceId = 0;
+        foreach (int sourceId in _activeRoomContributors.Keys)
+        {
+            onlySourceId = sourceId;
+            break;
+        }
+
+        RecordRoomCleared(onlySourceId);
+    }
+
+    public void RecordRoomCleared(UnityEngine.Object source)
+    {
+        if (source == null)
+        {
+            RecordRoomCleared();
+            return;
+        }
+
+        RecordRoomCleared(source.GetInstanceID());
     }
 
     public void RecordDamageTaken(float amount)
@@ -303,13 +330,109 @@ public class EmotionEngine : MonoBehaviour
         _currentRoomTime = 0f;
         _lastRoomClearTime = 0f;
         _roomTimerRunning = false;
+        _activeRoomContributors.Clear();
         _roomsCleared = 0;
         _currentRoomBaseSpawnCount = 0;
         _currentRoomAdjustedSpawnCount = 0;
+        _currentRoomSpawnerCount = 0;
         LastRoomReport = default;
         CurrentEmotion = startingEmotion;
         AggressionScore = startingEmotion == PlayerEmotionState.Aggressive ? aggressiveThreshold : calmThreshold;
         EmotionChanged?.Invoke(CurrentEmotion, BuildSnapshot());
+    }
+
+    private int BeginRoom(int sourceId, string sourceName, int baseSpawnCount, int adjustedSpawnCount)
+    {
+        if (_activeRoomContributors.Count == 0)
+        {
+            StartRoomWindow();
+        }
+
+        int sanitizedBaseCount = Mathf.Max(0, baseSpawnCount);
+        int sanitizedAdjustedCount = Mathf.Max(0, adjustedSpawnCount);
+
+        if (_activeRoomContributors.TryGetValue(sourceId, out ActiveRoomContributor existingContributor))
+        {
+            _currentRoomBaseSpawnCount -= existingContributor.baseSpawnCount;
+            _currentRoomAdjustedSpawnCount -= existingContributor.adjustedSpawnCount;
+        }
+        else
+        {
+            _currentRoomSpawnerCount++;
+        }
+
+        _activeRoomContributors[sourceId] = new ActiveRoomContributor
+        {
+            name = string.IsNullOrWhiteSpace(sourceName) ? "Spawner" : sourceName,
+            baseSpawnCount = sanitizedBaseCount,
+            adjustedSpawnCount = sanitizedAdjustedCount
+        };
+
+        _currentRoomBaseSpawnCount += sanitizedBaseCount;
+        _currentRoomAdjustedSpawnCount += sanitizedAdjustedCount;
+
+        return sourceId;
+    }
+
+    private void StartRoomWindow()
+    {
+        _currentRoomTime = 0f;
+        _roomTimerRunning = true;
+        _currentRoomBaseSpawnCount = 0;
+        _currentRoomAdjustedSpawnCount = 0;
+        _currentRoomSpawnerCount = 0;
+        _roomStartSnapshot = BuildSnapshot();
+        _roomStartEmotion = CurrentEmotion;
+        _roomStartScore = AggressionScore;
+        _roomStartMovementSpeedTotal = _movementSpeedTotal;
+        _roomStartMovementSamples = _movementSamples;
+    }
+
+    private void RecordRoomCleared(int sourceId)
+    {
+        if (!_activeRoomContributors.Remove(sourceId))
+        {
+            return;
+        }
+
+        if (_activeRoomContributors.Count > 0)
+        {
+            return;
+        }
+
+        CompleteRoomWindow();
+    }
+
+    private void CompleteRoomWindow()
+    {
+        if (!_roomTimerRunning)
+        {
+            return;
+        }
+
+        float clearDuration = _currentRoomTime;
+        _lastRoomClearTime = clearDuration;
+        _roomTimerRunning = false;
+        EvaluateEmotion(true);
+
+        _roomsCleared++;
+        LastRoomReport = BuildRoomReport(clearDuration);
+        RoomEvaluated?.Invoke(LastRoomReport);
+
+        if (logEmotionChanges)
+        {
+            Debug.Log($"Room {_roomsCleared} evaluated across {_currentRoomSpawnerCount} spawner(s): {LastRoomReport.emotionBefore} -> {LastRoomReport.emotionAfter} ({LastRoomReport.scoreBefore:0.00} -> {LastRoomReport.scoreAfter:0.00})");
+        }
+
+        _currentRoomTime = 0f;
+        _currentRoomBaseSpawnCount = 0;
+        _currentRoomAdjustedSpawnCount = 0;
+        _currentRoomSpawnerCount = 0;
+    }
+
+    private int CreateAnonymousRoomId()
+    {
+        return _nextAnonymousRoomId--;
     }
 
     private EmotionRoomReport BuildRoomReport(float clearDuration)
@@ -326,6 +449,7 @@ public class EmotionEngine : MonoBehaviour
             scoreBefore = _roomStartScore,
             scoreAfter = AggressionScore,
             duration = clearDuration,
+            spawnerCount = _currentRoomSpawnerCount,
             baseSpawnCount = _currentRoomBaseSpawnCount,
             adjustedSpawnCount = _currentRoomAdjustedSpawnCount,
             damageTaken = _damageTaken - _roomStartSnapshot.damageTaken,
@@ -446,6 +570,7 @@ public class EmotionEngine : MonoBehaviour
             timeRunning = _timeRunning,
             timeIdle = _timeIdle,
             averageMovementSpeed = GetAverageMovementSpeed(),
+            activeSpawnerCount = ActiveSpawnerCount,
             currentRoomTime = _currentRoomTime,
             lastRoomClearTime = _lastRoomClearTime
         };
