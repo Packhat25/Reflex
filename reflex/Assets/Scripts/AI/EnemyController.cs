@@ -139,17 +139,20 @@ public class EnemyController : MonoBehaviour
 
             bool grounded = controller != null ? controller.isGrounded : (agent != null && agent.isOnNavMesh);
             animator.SetBool("isGrounded", grounded);
+
+            bool isAttacking = _currentState is AttackState;
+            animator.SetBool("isAttacking", isAttacking);
         }
 
         _currentState?.Tick();
     }
-
 
     public void AttackPlayer()
     {
         if (animator != null)
         {
             animator.Play("Attack");
+            animator.SetBool("isAttacking", true);
         }
 
         if (player == null)
