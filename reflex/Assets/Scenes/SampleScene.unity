@@ -974,7 +974,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 204850541}
-  - component: {fileID: 204850538}
   - component: {fileID: 204850544}
   - component: {fileID: 204850543}
   - component: {fileID: 204850542}
@@ -990,29 +989,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!136 &204850538
-CapsuleCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 204850536}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 2
-  m_Radius: 0.5
-  m_Height: 2
-  m_Direction: 1
-  m_Center: {x: 0, y: 0, z: 0}
 --- !u!4 &204850541
 Transform:
   m_ObjectHideFlags: 0
@@ -1050,7 +1026,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMovementManagement
   movementVariables: {fileID: 11400000, guid: eb843777f58075144adb8f9625df68c3, type: 2}
-  playerCollider: {fileID: 204850538}
   playerController: {fileID: 204850544}
   camera: {fileID: 786249934}
   playerManager: {fileID: 204850548}
@@ -3062,11 +3037,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 1176845694579641688, guid: fad53cc0c18dc7f4dafd9ea5ecf61540, type: 3}
       propertyPath: m_Name
-      value: Bullet Tracer
-      objectReference: {fileID: 0}
-    - target: {fileID: 4156808694004686299, guid: fad53cc0c18dc7f4dafd9ea5ecf61540, type: 3}
-      propertyPath: m_Time
-      value: 0.075
+      value: Dash Trail
       objectReference: {fileID: 0}
     - target: {fileID: 4156808694004686299, guid: fad53cc0c18dc7f4dafd9ea5ecf61540, type: 3}
       propertyPath: m_PreviewTimeScale
@@ -3085,51 +3056,11 @@ PrefabInstance:
       value: 4819
       objectReference: {fileID: 0}
     - target: {fileID: 4156808694004686299, guid: fad53cc0c18dc7f4dafd9ea5ecf61540, type: 3}
-      propertyPath: m_Parameters.colorGradient.ctime1
-      value: 33153
-      objectReference: {fileID: 0}
-    - target: {fileID: 4156808694004686299, guid: fad53cc0c18dc7f4dafd9ea5ecf61540, type: 3}
       propertyPath: m_Parameters.colorGradient.ctime2
       value: 39707
       objectReference: {fileID: 0}
     - target: {fileID: 4156808694004686299, guid: fad53cc0c18dc7f4dafd9ea5ecf61540, type: 3}
-      propertyPath: m_Parameters.colorGradient.key0.b
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4156808694004686299, guid: fad53cc0c18dc7f4dafd9ea5ecf61540, type: 3}
-      propertyPath: m_Parameters.colorGradient.key0.g
-      value: 0.99820375
-      objectReference: {fileID: 0}
-    - target: {fileID: 4156808694004686299, guid: fad53cc0c18dc7f4dafd9ea5ecf61540, type: 3}
-      propertyPath: m_Parameters.colorGradient.key0.r
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 4156808694004686299, guid: fad53cc0c18dc7f4dafd9ea5ecf61540, type: 3}
       propertyPath: m_Parameters.colorGradient.key1.a
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4156808694004686299, guid: fad53cc0c18dc7f4dafd9ea5ecf61540, type: 3}
-      propertyPath: m_Parameters.colorGradient.key1.b
-      value: 0.011921644
-      objectReference: {fileID: 0}
-    - target: {fileID: 4156808694004686299, guid: fad53cc0c18dc7f4dafd9ea5ecf61540, type: 3}
-      propertyPath: m_Parameters.colorGradient.key1.g
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 4156808694004686299, guid: fad53cc0c18dc7f4dafd9ea5ecf61540, type: 3}
-      propertyPath: m_Parameters.colorGradient.key1.r
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4156808694004686299, guid: fad53cc0c18dc7f4dafd9ea5ecf61540, type: 3}
-      propertyPath: m_Parameters.colorGradient.key2.b
-      value: 0.011921644
-      objectReference: {fileID: 0}
-    - target: {fileID: 4156808694004686299, guid: fad53cc0c18dc7f4dafd9ea5ecf61540, type: 3}
-      propertyPath: m_Parameters.colorGradient.key2.g
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 4156808694004686299, guid: fad53cc0c18dc7f4dafd9ea5ecf61540, type: 3}
-      propertyPath: m_Parameters.colorGradient.key2.r
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4156808694004686299, guid: fad53cc0c18dc7f4dafd9ea5ecf61540, type: 3}
@@ -4395,7 +4326,7 @@ GameObject:
   - component: {fileID: 962114435}
   - component: {fileID: 962114437}
   - component: {fileID: 962114436}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Tilemap
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -26531,7 +26462,7 @@ GameObject:
   - component: {fileID: 1119442404}
   - component: {fileID: 1119442407}
   - component: {fileID: 1119442408}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Terrain
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -29775,7 +29706,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1972373717}
   - component: {fileID: 1972373716}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Grid
   m_TagString: Untagged
   m_Icon: {fileID: 0}
