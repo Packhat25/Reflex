@@ -369,7 +369,7 @@ public class EnemyController : MonoBehaviour
     }
 
 
-    public void TakeDamage(float amount)
+    public void TakeDamage(float amount,float attackStunDuration)
     {
         // Don't take further damage or change states if already dead
         Debug.Log($"<color=yellow> CurrentHP : {currentHealth}");
@@ -384,7 +384,7 @@ public class EnemyController : MonoBehaviour
         }
         else
         {
-            ChangeState(new HurtState(this));
+            ChangeState(new HurtState(this, attackStunDuration));
         }
     }
 

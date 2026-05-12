@@ -5,17 +5,19 @@ public class HurtState : IEnemyState
 {
     private EnemyController _enemy;
     private float _stunTimer;
-    private const float StunDuration  = 0.5f; // How long the enemy flinches
+    private float _activeStunDuration; // How long the enemy flinches
 
-    public HurtState(EnemyController enemy)
+    public HurtState(EnemyController enemy, float duration)
     {
         _enemy = enemy;
+        _activeStunDuration = duration;
     }
 
     public void OnEnter()
     {
+        _stunTimer = _activeStunDuration;
+
         Debug.Log("Enemy hit! Entering HURT STATE.");
-        _stunTimer = StunDuration;
         
         // Stop movement while hurt
         if (_enemy.agent != null && _enemy.agent.isActiveAndEnabled && _enemy.agent.isOnNavMesh)
@@ -51,5 +53,6 @@ public class HurtState : IEnemyState
         {
             _enemy.agent.isStopped = false;
         }
+
     }
 }

@@ -172,6 +172,7 @@ public class WeaponManager : MonoBehaviour
         Collider[] hitEnemies = Physics.OverlapBox(center, halfExtents, orientation, enemyLayer);
         AttackStep step = playerManager.weaponData.comboChain[playerManager.currentComboIndex - 1];
         float finalDamage = step.attackDamage * playerManager.TotalDamageMultiplier;
+        float attackStunDuration = step.attackStunDuration;
         //chance for crit
         if (UnityEngine.Random.value < playerManager.FinalCritChance)
         {
@@ -185,8 +186,7 @@ public class WeaponManager : MonoBehaviour
             EnemyHurtbox hurtbox = enemy.GetComponent<EnemyHurtbox>();
             if (hurtbox != null)
             {
-                Debug.Log($"<color=red>Enemy Took {finalDamage} ");
-                hurtbox.ReceiveDamage(finalDamage);
+                hurtbox.ReceiveDamage(finalDamage, attackStunDuration);
                 EmotionEngine.Instance.RecordEnemyHit(finalDamage);
             }
 

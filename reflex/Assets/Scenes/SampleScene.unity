@@ -6273,11 +6273,13 @@ MonoBehaviour:
   player: {fileID: 0}
   spriteRenderer: {fileID: 0}
   agent: {fileID: 1582091592}
+  EnemyStatData: {fileID: 0}
   speed: 3
   maxHealth: 15
-  currentHealth: 15
+  attackDamage: 0
   attackRange: 2
   attackCooldown: 1.5
+  currentHealth: 15
   useEmotionDirector: 1
   enemyType: 
   isElite: 0
@@ -36001,11 +36003,13 @@ MonoBehaviour:
   player: {fileID: 0}
   spriteRenderer: {fileID: 0}
   agent: {fileID: 9104121719445025219}
+  EnemyStatData: {fileID: 11400000, guid: db3d60fdcec7e2b49a94d3fae155963a, type: 2}
   speed: 0
   maxHealth: 100
-  currentHealth: 100
+  attackDamage: 0
   attackRange: 5
   attackCooldown: 1.5
+  currentHealth: 100
   useEmotionDirector: 1
   enemyType: 
   isElite: 0

@@ -17,11 +17,11 @@ public class EnemyHurtbox : MonoBehaviour
     /// <summary>
     /// Call this method from your player's weapon/attack script when it intersects with this collider.
     /// </summary>
-    public void ReceiveDamage(float damageAmount)
+    public void ReceiveDamage(float damageAmount,float attackStunDuration)
     {
         if (enemyController != null)
         {
-            enemyController.TakeDamage(damageAmount);
+            enemyController.TakeDamage(damageAmount,attackStunDuration);
         }
         else
         {
