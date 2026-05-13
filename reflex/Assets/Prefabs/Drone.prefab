@@ -742,6 +742,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: adaa96ffa8c6cae4bb0eb379cad2e0f5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyController
+  enemyStateDislpay: 
   animator: {fileID: 2987281263678921744}
   visionRange: 8
   visionAngle: 90
@@ -755,6 +756,7 @@ MonoBehaviour:
   player: {fileID: 0}
   spriteRenderer: {fileID: 0}
   agent: {fileID: 2396923652644325528}
+  enemyHitbox: {fileID: 0}
   EnemyStatData: {fileID: 11400000, guid: 59ce66bd3fa6d9b4e9d2f6a8a8404f22, type: 2}
   speed: 5
   maxHealth: 10
@@ -765,6 +767,7 @@ MonoBehaviour:
   useEmotionDirector: 1
   enemyType: Drone
   isElite: 0
+  isAtkFinish: 1
   laserLine: {fileID: 0}
 --- !u!1 &8842317418687533145
 GameObject:

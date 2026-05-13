@@ -10,6 +10,8 @@ public class PlayerManager : MonoBehaviour
     public bool isDead = false;
     public bool canAttack = true;
     public bool canGoToIdle = true;
+    public bool isVulnerable = true;
+    public bool isImmortal = false; // For testing purposes, can be toggled on/off
 
     [Header("Combat & Combo")]
     public int currentComboIndex = 0;
@@ -71,11 +73,22 @@ public class PlayerManager : MonoBehaviour
 
     public void TakeDamage(float amount)
     {
-        if (isDead) return;
+        if (isDead || !isVulnerable || isImmortal) return;
         currentHealth -= amount;
         EmotionEngine.Instance.RecordDamageTaken(amount);
         Debug.Log($"HP: {currentHealth}/{MaxHealth}");
-        if (currentHealth <= 0) Die();
+        isVulnerable = false; // Start invulnerability timer
+        if (currentHealth <= 0)
+        {
+            currentHealth = 0;
+            Die();
+        }
+        else {Invoke(nameof(ResetVulnerability), stats.invulnerabilityDuration);}
+    }
+
+    private void ResetVulnerability()
+    {
+        isVulnerable = true;
     }
 
     public void Heal(float amount)

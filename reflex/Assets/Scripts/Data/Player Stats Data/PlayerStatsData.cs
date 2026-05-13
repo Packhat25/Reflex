@@ -11,4 +11,7 @@ public class PlayerData : ScriptableObject
     
     [Header("Base Movement")]
     public float baseMoveSpeed = 5.0f;
+
+    [Header("Invulnerability")]
+    public float invulnerabilityDuration = 1.0f;
 }

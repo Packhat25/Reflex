@@ -1854,8 +1854,9 @@ GameObject:
   m_Component:
   - component: {fileID: 4906720922436944227}
   - component: {fileID: 4116257349576097626}
+  - component: {fileID: 3944237861990966326}
   m_Layer: 0
-  m_Name: Cube
+  m_Name: Hit Box
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1897,6 +1898,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 2.14, y: 2.396434, z: 1.6074982}
   m_Center: {x: 0, y: -0.6982169, z: -0.30374908}
+--- !u!114 &3944237861990966326
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3040293972377082802}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3e170588b0170a84c9c4b0f15dcf8013, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: '::'
+  enemyController: {fileID: 0}
 --- !u!1 &3057149810869898891
 GameObject:
   m_ObjectHideFlags: 0
@@ -4678,6 +4692,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: adaa96ffa8c6cae4bb0eb379cad2e0f5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyController
+  enemyStateDislpay: 
   animator: {fileID: 6563087241451457012}
   visionRange: 30
   visionAngle: 360
@@ -4691,6 +4706,7 @@ MonoBehaviour:
   player: {fileID: 0}
   spriteRenderer: {fileID: 0}
   agent: {fileID: 5377144085699869061}
+  enemyHitbox: {fileID: 0}
   EnemyStatData: {fileID: 11400000, guid: ca24cdb355fe90e40badbbd754a6e7b1, type: 2}
   speed: 5
   maxHealth: 10
@@ -4701,6 +4717,7 @@ MonoBehaviour:
   useEmotionDirector: 1
   enemyType: Ant
   isElite: 0
+  isAtkFinish: 1
   laserLine: {fileID: 0}
 --- !u!1 &6844343322861162365
 GameObject:

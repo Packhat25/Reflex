@@ -3,6 +3,7 @@ using UnityEngine;
 public class EnemyController : MonoBehaviour
 {
     private IEnemyState _currentState;
+    public string enemyStateDislpay;
 
     [Header("Visuals")]
     public Animator animator;
@@ -25,6 +26,7 @@ public class EnemyController : MonoBehaviour
     public Transform player;
     public SpriteRenderer spriteRenderer;
     public UnityEngine.AI.NavMeshAgent agent;
+    public GameObject enemyHitbox;
 
     [Header("Enemy Stats")]
     public EnemyData EnemyStatData; // The ScriptableObject blueprint
@@ -69,6 +71,8 @@ public class EnemyController : MonoBehaviour
         speed = EnemyStatData.speed;
         attackDamage = EnemyStatData.attackDamage;
         attackCooldown = EnemyStatData.attackCooldown;
+        enemyHitbox.SetActive(false); // Ensure hitbox starts disabled
+        PrintCurrentState();
 
         if (agent == null)
         {
@@ -139,6 +143,7 @@ public class EnemyController : MonoBehaviour
             Vector3 direction = agent.velocity.normalized;
             // direction.y = 0; // Keep the enemy upright
             transform.rotation = Quaternion.LookRotation(direction);
+            
         }
 
         if (animator != null)
@@ -156,6 +161,31 @@ public class EnemyController : MonoBehaviour
         _currentState?.Tick();
     }
 
+    // debug purpouses
+    public void PrintCurrentState()
+    {
+        enemyStateDislpay = _currentState != null ? _currentState.GetType().Name : "None";
+        Debug.Log($"{name} is currently in state: {enemyStateDislpay}");
+    }
+
+
+    // anim events
+    public void HitboxOn()
+    {
+        if (enemyHitbox != null)
+        {
+            enemyHitbox.SetActive(true);
+        }
+    }
+
+    public void HitboxOff()
+    {
+        if (enemyHitbox != null)
+        {
+            enemyHitbox.SetActive(false);
+        }
+    }
+
     public void AttackPlayer()
     {
         if (animator != null)
@@ -169,26 +199,6 @@ public class EnemyController : MonoBehaviour
             Debug.LogWarning($"{name}: AttackPlayer called but player is not assigned.");
             return;
         }
-
-        Vector3 directionToPlayer = (player.position - transform.position).normalized;
-        Vector3 hitBoxCenter = transform.position + (directionToPlayer * 1f) + (Vector3.up * 1f);
-
-        // 3. Generate the invisible Hitbox sphere and grab any colliders it touches
-        // The '1f' at the end is the size of the bite radius.
-        Collider[] hitObjects = Physics.OverlapSphere(hitBoxCenter, 1f);
-
-        // 4. Loop through everything we hit and check if it's the Player
-        foreach (Collider hit in hitObjects)
-        {
-             PlayerManager pm=hit.GetComponent<PlayerManager>();
-
-            if (pm!=null)
-            {
-               pm.TakeDamage(attackDamage);
-               Debug.Log("<color=orange>ANT BIT THE PLAYER!</color>");
-              
-            }
-        }
     }
     
     public void ChangeState(IEnemyState newState)
@@ -196,6 +206,7 @@ public class EnemyController : MonoBehaviour
         _currentState?.OnExit();
         _currentState = newState;
         _currentState.OnEnter();
+        PrintCurrentState();
     }
 
     public bool CanSeePlayer()
