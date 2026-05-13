@@ -15,15 +15,23 @@ public class WeaponManager : MonoBehaviour
     public GameObject hitboxVisual;
     public LayerMask enemyLayer;
 
+    [Header("Attack Assist")]
+    [SerializeField] private float attackAssistMaxStepDistance = 0.45f;
+    [SerializeField] private float attackAssistReachPadding = 0.15f;
+    [SerializeField] private float attackAssistSearchPadding = 0.6f;
+
     [Header("Input")]
     private InputAction attackAction;
 
     [Header("Combo & Cooldown State")]
     private float lastAttackTime;
     private bool startResetTime = false;
+    private CharacterController playerController;
 
     void Start()
     {
+        playerController = GetComponent<CharacterController>();
+
         if (playerManager.playerInput != null)
         {
             // Update this string to match your Input Action Asset exactly
@@ -110,23 +118,16 @@ public class WeaponManager : MonoBehaviour
         // 1. Cache the reference for performance and readability
         WeaponData data = playerManager.weaponData;
         if (data == null || data.comboChain.Length == 0) return;
-        // ---SOFT LOCK-ON / SNAP ROTATION ---
-        // We do this BEFORE locking the state so the player "snaps" to face the target 
-        // immediately as they press the button.
-        float lockOnRadius = 10f; // Adjust this to match your weapon's reach
-        Transform target = GetNearestEnemy(lockOnRadius);
 
-        if (target != null)
+        int nextComboIndex = playerManager.currentComboIndex + 1;
+        if (nextComboIndex > data.comboChain.Length)
         {
-            Vector3 direction = target.position - transform.position;
-            direction.y = 0; // Keep the player level (prevent tilting up/down)
-
-            if (direction != Vector3.zero)
-            {
-                transform.rotation = Quaternion.LookRotation(direction);
-            }
+            nextComboIndex = 1; // Loop back to first attack
         }
-        // ------------------------------------------
+
+        AttackStep step = data.comboChain[nextComboIndex - 1];
+
+        ApplyAttackAssist(step);
 
         // 2. Set State
         playerManager.canAttack = false;
@@ -134,15 +135,8 @@ public class WeaponManager : MonoBehaviour
         EmotionEngine.Instance.RecordAttackStarted();
         startResetTime = false; // Pause the cooldown timer during the swing
 
-        // 3. Logic: Increment and Wrap (Loop) the combo
-        playerManager.currentComboIndex++;
-        if (playerManager.currentComboIndex > data.comboChain.Length)
-        {
-            playerManager.currentComboIndex = 1; // Loop back to first attack
-        }
-
-        // 4. Get the specific step data (using cached 'data' and safe index)
-        AttackStep step = data.comboChain[playerManager.currentComboIndex - 1];
+        // 3. Apply the prepared combo index
+        playerManager.currentComboIndex = nextComboIndex;
 
         // 5. Execution
         // Note: We use the card window bonus we set up earlier!
@@ -208,6 +202,111 @@ public class WeaponManager : MonoBehaviour
         StartResetTime();
     }
 
+    private void ApplyAttackAssist(AttackStep step)
+    {
+        if (!TryGetAttackAssistTarget(step, out Collider targetCollider))
+        {
+            return;
+        }
+
+        Vector3 targetPosition = targetCollider.bounds.center;
+        targetPosition.y = transform.position.y;
+
+        Vector3 direction = targetPosition - transform.position;
+        direction.y = 0f;
+
+        if (direction.sqrMagnitude <= Mathf.Epsilon)
+        {
+            return;
+        }
+
+        Vector3 flatDirection = direction.normalized;
+        transform.rotation = Quaternion.LookRotation(flatDirection);
+
+        float stepDistance = GetAssistStepDistance(targetCollider, targetPosition, step);
+        if (stepDistance <= 0f)
+        {
+            return;
+        }
+
+        Vector3 movement = flatDirection * stepDistance;
+        if (playerController != null && playerController.enabled)
+        {
+            playerController.Move(movement);
+        }
+        else
+        {
+            transform.position += movement;
+        }
+    }
+
+    private bool TryGetAttackAssistTarget(AttackStep step, out Collider targetCollider)
+    {
+        targetCollider = null;
+
+        float searchRadius = step.attackRange + attackAssistMaxStepDistance + attackAssistSearchPadding;
+        Collider[] candidates = enemyLayer.value != 0
+            ? Physics.OverlapSphere(transform.position, searchRadius, enemyLayer, QueryTriggerInteraction.Collide)
+            : Physics.OverlapSphere(transform.position, searchRadius, ~0, QueryTriggerInteraction.Collide);
+
+        float bestScore = Mathf.Infinity;
+
+        foreach (Collider candidate in candidates)
+        {
+            if (!candidate.CompareTag("Enemy") || candidate.GetComponent<EnemyHurtbox>() == null)
+            {
+                continue;
+            }
+
+            Vector3 targetPosition = candidate.bounds.center;
+            targetPosition.y = transform.position.y;
+
+            Vector3 toTarget = targetPosition - transform.position;
+            toTarget.y = 0f;
+
+            float centerDistance = toTarget.magnitude;
+            if (centerDistance <= Mathf.Epsilon)
+            {
+                continue;
+            }
+
+            float surfaceDistance = Mathf.Max(0f, centerDistance - GetHorizontalBoundsRadius(candidate.bounds));
+            float maxAssistedReach = step.attackRange + attackAssistMaxStepDistance;
+            if (surfaceDistance > maxAssistedReach)
+            {
+                continue;
+            }
+
+            float facingScore = Vector3.Dot(transform.forward, toTarget / centerDistance);
+            float score = surfaceDistance + ((1f - facingScore) * 0.25f);
+            if (score < bestScore)
+            {
+                bestScore = score;
+                targetCollider = candidate;
+            }
+        }
+
+        return targetCollider != null;
+    }
+
+    private float GetAssistStepDistance(Collider targetCollider, Vector3 targetPosition, AttackStep step)
+    {
+        Vector3 toTarget = targetPosition - transform.position;
+        toTarget.y = 0f;
+
+        float centerDistance = toTarget.magnitude;
+        float surfaceDistance = Mathf.Max(0f, centerDistance - GetHorizontalBoundsRadius(targetCollider.bounds));
+        float desiredSurfaceDistance = Mathf.Max(0f, step.attackRange - attackAssistReachPadding);
+        float reachGap = surfaceDistance - desiredSurfaceDistance;
+
+        return Mathf.Clamp(reachGap, 0f, attackAssistMaxStepDistance);
+    }
+
+    private float GetHorizontalBoundsRadius(Bounds bounds)
+    {
+        return Mathf.Max(bounds.extents.x, bounds.extents.z);
+    }
+
 
     public void StartResetTime()
     {
@@ -224,27 +323,5 @@ public class WeaponManager : MonoBehaviour
             // Draw a wireframe cube that matches the hitbox scale
             Gizmos.DrawWireCube(Vector3.zero, Vector3.one);
         }
-    }
-    private Transform GetNearestEnemy(float radius)
-    {
-        // 1. Find all colliders in range
-        Collider[] hitColliders = Physics.OverlapSphere(transform.position, radius);
-        Transform closestEnemy = null;
-        float closestDistance = Mathf.Infinity;
-
-        foreach (var hitCollider in hitColliders)
-        {
-            // 2. Filter by Tag (Ensure your enemies have the "Enemy" tag)
-            if (hitCollider.CompareTag("Enemy"))
-            {
-                float distance = Vector3.Distance(transform.position, hitCollider.transform.position);
-                if (distance < closestDistance)
-                {
-                    closestDistance = distance;
-                    closestEnemy = hitCollider.transform;
-                }
-            }
-        }
-        return closestEnemy;
     }
 }
