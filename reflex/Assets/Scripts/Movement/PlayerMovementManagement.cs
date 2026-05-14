@@ -82,7 +82,6 @@ public class PlayerMovementManagement : MonoBehaviour
             StartCoroutine(PerformDash());
         }
 
-        isSprinting = sprintAction.IsPressed();
     }
     private bool CanDash()
     {
