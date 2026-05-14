@@ -191,6 +191,7 @@ public class EnemyController : MonoBehaviour
         {
             animator.Play("Attack");
             animator.SetBool("isAttacking", true);
+            //Debug.Log("Attacking player");
         }
 
         if (player == null)

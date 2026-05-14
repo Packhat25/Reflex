@@ -1,4 +1,3 @@
-using Unity.VisualScripting;
 using UnityEngine;
 
 public class EnemyHitbox : MonoBehaviour
@@ -7,15 +6,21 @@ public class EnemyHitbox : MonoBehaviour
     
     private void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag("Player"))
+        TryDamagePlayer(other);
+    }
+
+    private void OnTriggerStay(Collider other)
+    {
+        TryDamagePlayer(other);
+    }
+
+    private void TryDamagePlayer(Collider other)
+    {
+        PlayerManager playerManager = other.GetComponentInParent<PlayerManager>();
+        if (playerManager != null && (other.CompareTag("Player") || playerManager.CompareTag("Player")))
         {
-            // Assuming the player has a method to take damage
-            PlayerManager playerManager = other.GetComponent<PlayerManager>();
-            if (playerManager != null)
-            {
-                playerManager.TakeDamage(enemyController.attackDamage);
-                enemyController.HitboxOff(); // Turn off the hitbox after hitting
-            }
+            playerManager.TakeDamage(enemyController.attackDamage);
+            enemyController.HitboxOff();
         }
     }
 }
