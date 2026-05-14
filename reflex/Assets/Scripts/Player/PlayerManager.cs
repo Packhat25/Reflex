@@ -40,6 +40,14 @@ public class PlayerManager : MonoBehaviour
     public float currentHealth;
     private float glassCannonHPModifier = 1f; // Used for the Glass Cannon card
 
+    private void Awake()
+    {
+        if (GetComponent<PlayerOcclusionFader>() == null)
+        {
+            gameObject.AddComponent<PlayerOcclusionFader>();
+        }
+    }
+
     // --- ADDITIVE CALCULATIONS ---
     
     // Max Health: (Base + Permanent + Card) / Glass Cannon Penalty
