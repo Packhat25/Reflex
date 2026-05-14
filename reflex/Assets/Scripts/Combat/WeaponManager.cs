@@ -1,8 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections;
-using System;
-using Unity.VisualScripting;
 
 
 
@@ -144,9 +142,38 @@ public class WeaponManager : MonoBehaviour
 
         UpdateHitboxTransform(step);
         playerVisuals.PlayAttack(playerManager.currentComboIndex);
+        ApplyDashIn(step);
 
         lastAttackTime = Time.time;
     }
+
+    // dash in when attacking using weaponData dashInvelocity and the player's character controller
+    private void ApplyDashIn(AttackStep step)
+    {
+        if (playerController == null) return;
+
+        Vector3 dashDirection = transform.forward;
+        float dashDistance = step.dashInDistance;
+        float dashVelocity = step.dashInVelocity;
+        StartCoroutine(DashInCoroutine(dashDirection, dashDistance, dashVelocity));
+    }
+
+    private IEnumerator DashInCoroutine(Vector3 direction, float distance, float velocity)
+    {
+        float dashTime = distance / velocity;
+        float elapsedTime = 0f;
+
+        while (elapsedTime < dashTime)
+        {
+            playerController.Move(direction * velocity * Time.deltaTime);
+            elapsedTime += Time.deltaTime;
+            yield return null;
+        }
+    }
+
+
+    
+
 
     private void UpdateHitboxTransform(AttackStep step)
     {
