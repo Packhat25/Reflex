@@ -1033,7 +1033,7 @@ MonoBehaviour:
   rotationSpeed: 15
   dashCollisionMask:
     serializedVersion: 2
-    m_Bits: 4294967295
+    m_Bits: 65
   dashCollisionBuffer: 0.05
   dashTrail: {fileID: 2133123461}
   isDashing: 0

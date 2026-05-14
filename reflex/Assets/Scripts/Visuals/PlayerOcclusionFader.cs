@@ -1229,6 +1229,11 @@ public class PlayerOcclusionFader : MonoBehaviour
             MaterialPropertyBlock outlinePropertyBlock,
             bool updateMaterialProperties)
         {
+            if (root == null)
+            {
+                return;
+            }
+
             bool visible = amount > 0.001f && IsSourceVisible();
             if (root.activeSelf != visible)
             {
