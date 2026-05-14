@@ -5,8 +5,13 @@ using UnityEngine.Rendering;
 [DisallowMultipleComponent]
 public class PlayerOcclusionFader : MonoBehaviour
 {
-    [Header("Reveal Area")]
-    [SerializeField, Min(0.1f)] private float revealRadius = 2.25f;
+    [Header("Line Of Sight")]
+    [SerializeField] private Camera occlusionCamera;
+    [SerializeField] private Vector3 fallbackViewTargetOffset = new Vector3(0f, 1f, 0f);
+    [SerializeField, Min(0f)] private float lineOfSightPadding = 0.18f;
+    [SerializeField, Range(0.1f, 1f)] private float playerWidthSampleScale = 0.75f;
+    [SerializeField, Range(0.1f, 1f)] private float playerHeightSampleScale = 0.35f;
+    [SerializeField, Min(0f)] private float playerBackPadding = 0.15f;
     [SerializeField, Range(0.05f, 0.95f)] private float revealedAlpha = 0.28f;
     [SerializeField, Min(0.01f)] private float scanInterval = 0.08f;
     [SerializeField, Min(0.1f)] private float fadeSpeed = 5f;
@@ -14,13 +19,14 @@ public class PlayerOcclusionFader : MonoBehaviour
     [Header("Filtering")]
     [SerializeField] private LayerMask occluderLayers = ~0;
     [SerializeField] private bool useDefaultLayerExclusions = true;
-    [SerializeField] private float verticalPaddingBelowPlayer = 1.25f;
-    [SerializeField] private float verticalPaddingAbovePlayer = 6f;
 
     private readonly Dictionary<Renderer, FadedRenderer> fadedRenderers = new Dictionary<Renderer, FadedRenderer>();
     private readonly HashSet<Renderer> currentRevealTargets = new HashSet<Renderer>();
     private readonly List<Renderer> removeBuffer = new List<Renderer>();
+    private readonly Plane[] cameraFrustumPlanes = new Plane[6];
+    private readonly Vector3[] playerTargetPoints = new Vector3[5];
 
+    private CharacterController playerController;
     private float nextScanTime;
     private int playerLayer = -1;
     private int enemyLayer = -1;
@@ -31,6 +37,7 @@ public class PlayerOcclusionFader : MonoBehaviour
 
     private void Awake()
     {
+        playerController = GetComponent<CharacterController>();
         playerLayer = LayerMask.NameToLayer("Player");
         enemyLayer = LayerMask.NameToLayer("Enemy");
         terrainLayer = LayerMask.NameToLayer("Terrain");
@@ -65,11 +72,23 @@ public class PlayerOcclusionFader : MonoBehaviour
     private void RefreshRevealTargets()
     {
         currentRevealTargets.Clear();
+        Camera activeCamera = ResolveCamera();
+
+        if (activeCamera == null)
+        {
+            MarkInactiveTargetsOpaque();
+            return;
+        }
+
+        BuildPlayerTargetPoints(activeCamera);
+        GeometryUtility.CalculateFrustumPlanes(activeCamera, cameraFrustumPlanes);
         Renderer[] renderers = FindObjectsByType<Renderer>(FindObjectsSortMode.None);
 
         foreach (Renderer renderer in renderers)
         {
-            if (!IsEligibleOccluder(renderer) || !BoundsOverlapRevealCircle(renderer.bounds))
+            if (!IsEligibleOccluder(renderer) ||
+                !GeometryUtility.TestPlanesAABB(cameraFrustumPlanes, renderer.bounds) ||
+                !BoundsBlockPlayerLineOfSight(renderer.bounds, activeCamera))
             {
                 continue;
             }
@@ -84,6 +103,46 @@ public class PlayerOcclusionFader : MonoBehaviour
             fadedRenderer.TargetAlpha = revealedAlpha;
         }
 
+        MarkInactiveTargetsOpaque();
+    }
+
+    private Camera ResolveCamera()
+    {
+        if (occlusionCamera != null && occlusionCamera.isActiveAndEnabled)
+        {
+            return occlusionCamera;
+        }
+
+        occlusionCamera = Camera.main;
+        return occlusionCamera;
+    }
+
+    private void BuildPlayerTargetPoints(Camera activeCamera)
+    {
+        Vector3 center = playerController != null
+            ? transform.TransformPoint(playerController.center)
+            : transform.TransformPoint(fallbackViewTargetOffset);
+
+        float halfWidth = playerController != null
+            ? playerController.radius * playerWidthSampleScale
+            : 0.35f * playerWidthSampleScale;
+
+        float halfHeight = playerController != null
+            ? playerController.height * playerHeightSampleScale
+            : 1f * playerHeightSampleScale;
+
+        Vector3 cameraRight = activeCamera.transform.right * halfWidth;
+        Vector3 worldUp = Vector3.up * halfHeight;
+
+        playerTargetPoints[0] = center;
+        playerTargetPoints[1] = center + cameraRight;
+        playerTargetPoints[2] = center - cameraRight;
+        playerTargetPoints[3] = center + worldUp;
+        playerTargetPoints[4] = center - worldUp;
+    }
+
+    private void MarkInactiveTargetsOpaque()
+    {
         foreach (KeyValuePair<Renderer, FadedRenderer> entry in fadedRenderers)
         {
             if (!currentRevealTargets.Contains(entry.Key))
@@ -147,6 +206,34 @@ public class PlayerOcclusionFader : MonoBehaviour
         return !HasExcludedParent(renderer.transform);
     }
 
+    private bool BoundsBlockPlayerLineOfSight(Bounds bounds, Camera activeCamera)
+    {
+        Bounds paddedBounds = bounds;
+        paddedBounds.Expand(lineOfSightPadding * 2f);
+
+        Vector3 cameraPosition = activeCamera.transform.position;
+
+        for (int i = 0; i < playerTargetPoints.Length; i++)
+        {
+            Vector3 toPlayer = playerTargetPoints[i] - cameraPosition;
+            float playerDistance = toPlayer.magnitude;
+
+            if (playerDistance <= Mathf.Epsilon)
+            {
+                continue;
+            }
+
+            Ray cameraRay = new Ray(cameraPosition, toPlayer / playerDistance);
+            if (paddedBounds.IntersectRay(cameraRay, out float hitDistance) &&
+                hitDistance < playerDistance - playerBackPadding)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private bool IsDefaultExcludedLayer(int layer)
     {
         if (!useDefaultLayerExclusions)
@@ -181,37 +268,20 @@ public class PlayerOcclusionFader : MonoBehaviour
         return false;
     }
 
-    private bool BoundsOverlapRevealCircle(Bounds bounds)
-    {
-        Vector3 playerPosition = transform.position;
-
-        if (bounds.max.y < playerPosition.y - verticalPaddingBelowPlayer ||
-            bounds.min.y > playerPosition.y + verticalPaddingAbovePlayer)
-        {
-            return false;
-        }
-
-        float closestX = Mathf.Clamp(playerPosition.x, bounds.min.x, bounds.max.x);
-        float closestZ = Mathf.Clamp(playerPosition.z, bounds.min.z, bounds.max.z);
-        float deltaX = playerPosition.x - closestX;
-        float deltaZ = playerPosition.z - closestZ;
-
-        return (deltaX * deltaX) + (deltaZ * deltaZ) <= revealRadius * revealRadius;
-    }
-
     private void OnDrawGizmosSelected()
     {
-        Gizmos.color = new Color(0.25f, 0.8f, 1f, 0.35f);
-        Vector3 center = transform.position;
-        const int segments = 48;
-        Vector3 previous = center + Vector3.forward * revealRadius;
-
-        for (int i = 1; i <= segments; i++)
+        Camera activeCamera = occlusionCamera != null ? occlusionCamera : Camera.main;
+        if (activeCamera == null)
         {
-            float angle = (i / (float)segments) * Mathf.PI * 2f;
-            Vector3 next = center + new Vector3(Mathf.Sin(angle) * revealRadius, 0f, Mathf.Cos(angle) * revealRadius);
-            Gizmos.DrawLine(previous, next);
-            previous = next;
+            return;
+        }
+
+        BuildPlayerTargetPoints(activeCamera);
+        Gizmos.color = new Color(0.25f, 0.8f, 1f, 0.35f);
+
+        for (int i = 0; i < playerTargetPoints.Length; i++)
+        {
+            Gizmos.DrawLine(activeCamera.transform.position, playerTargetPoints[i]);
         }
     }
 
