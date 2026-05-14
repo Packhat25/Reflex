@@ -1,10 +1,14 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 [DisallowMultipleComponent]
 public class PlayerOcclusionFader : MonoBehaviour
 {
+    private const string SilhouetteResourceName = "Player Occlusion Silhouette";
+    private const string SilhouetteShaderName = "Hidden/Reflex/PlayerOcclusionSilhouette";
+    private const string SilhouetteObjectPrefix = "OcclusionSilhouette";
+    private static readonly int ColorProperty = Shader.PropertyToID("_Color");
+
     [Header("Line Of Sight")]
     [SerializeField] private Camera occlusionCamera;
     [SerializeField] private Vector3 fallbackViewTargetOffset = new Vector3(0f, 1f, 0f);
@@ -12,22 +16,36 @@ public class PlayerOcclusionFader : MonoBehaviour
     [SerializeField, Range(0.1f, 1f)] private float playerWidthSampleScale = 0.75f;
     [SerializeField, Range(0.1f, 1f)] private float playerHeightSampleScale = 0.35f;
     [SerializeField, Min(0f)] private float playerBackPadding = 0.15f;
-    [SerializeField, Range(0.05f, 0.95f)] private float revealedAlpha = 0.28f;
     [SerializeField, Min(0.01f)] private float scanInterval = 0.08f;
-    [SerializeField, Min(0.1f)] private float fadeSpeed = 5f;
+
+    [Header("Silhouette")]
+    [SerializeField] private Material silhouetteMaterial;
+    [SerializeField] private Color silhouetteFillColor = new Color(0.02f, 0.025f, 0.035f, 0.62f);
+    [SerializeField] private Color silhouetteOutlineColor = new Color(1f, 0.74f, 0.22f, 0.95f);
+    [SerializeField, Min(1f)] private float outlineScale = 1.12f;
+    [SerializeField, Min(0.1f)] private float silhouetteFadeSpeed = 7f;
+    [SerializeField] private int silhouetteSortingOrderOffset = 250;
+    [SerializeField, Min(0.05f)] private float sourceRefreshInterval = 0.5f;
 
     [Header("Filtering")]
     [SerializeField] private LayerMask occluderLayers = ~0;
     [SerializeField] private bool useDefaultLayerExclusions = true;
 
-    private readonly Dictionary<Renderer, FadedRenderer> fadedRenderers = new Dictionary<Renderer, FadedRenderer>();
-    private readonly HashSet<Renderer> currentRevealTargets = new HashSet<Renderer>();
-    private readonly List<Renderer> removeBuffer = new List<Renderer>();
+    private readonly List<SilhouetteSprite> silhouetteSprites = new List<SilhouetteSprite>();
+    private readonly HashSet<SpriteRenderer> knownSilhouetteSources = new HashSet<SpriteRenderer>();
+    private readonly List<Collider> occluderColliders = new List<Collider>();
     private readonly Plane[] cameraFrustumPlanes = new Plane[6];
     private readonly Vector3[] playerTargetPoints = new Vector3[5];
 
     private CharacterController playerController;
+    private Material runtimeSilhouetteMaterial;
+    private MaterialPropertyBlock fillPropertyBlock;
+    private MaterialPropertyBlock outlinePropertyBlock;
+    private bool ownsRuntimeSilhouetteMaterial;
+    private bool playerOccluded;
+    private float silhouetteAmount;
     private float nextScanTime;
+    private float nextSourceRefreshTime;
     private int playerLayer = -1;
     private int enemyLayer = -1;
     private int terrainLayer = -1;
@@ -38,24 +56,52 @@ public class PlayerOcclusionFader : MonoBehaviour
     private void Awake()
     {
         playerController = GetComponent<CharacterController>();
+        fillPropertyBlock = new MaterialPropertyBlock();
+        outlinePropertyBlock = new MaterialPropertyBlock();
+
         playerLayer = LayerMask.NameToLayer("Player");
         enemyLayer = LayerMask.NameToLayer("Enemy");
         terrainLayer = LayerMask.NameToLayer("Terrain");
         uiLayer = LayerMask.NameToLayer("UI");
         ignoreRaycastLayer = LayerMask.NameToLayer("Ignore Raycast");
         dashingPlayerLayer = LayerMask.NameToLayer("DashingPlayer");
+
+        ResolveSilhouetteMaterial();
+    }
+
+    private void Start()
+    {
+        RefreshSilhouetteSources();
     }
 
     private void OnDisable()
     {
-        foreach (FadedRenderer fadedRenderer in fadedRenderers.Values)
+        playerOccluded = false;
+        silhouetteAmount = 0f;
+        UpdateSilhouetteVisuals();
+    }
+
+    private void OnDestroy()
+    {
+        for (int i = 0; i < silhouetteSprites.Count; i++)
         {
-            fadedRenderer.Restore();
+            silhouetteSprites[i].Destroy();
         }
 
-        fadedRenderers.Clear();
-        currentRevealTargets.Clear();
-        removeBuffer.Clear();
+        silhouetteSprites.Clear();
+        knownSilhouetteSources.Clear();
+
+        if (ownsRuntimeSilhouetteMaterial && runtimeSilhouetteMaterial != null)
+        {
+            if (Application.isPlaying)
+            {
+                Destroy(runtimeSilhouetteMaterial);
+            }
+            else
+            {
+                DestroyImmediate(runtimeSilhouetteMaterial);
+            }
+        }
     }
 
     private void Update()
@@ -63,21 +109,30 @@ public class PlayerOcclusionFader : MonoBehaviour
         if (Time.time >= nextScanTime)
         {
             nextScanTime = Time.time + scanInterval;
-            RefreshRevealTargets();
+            playerOccluded = IsPlayerOccluded();
         }
 
-        UpdateFades();
+        float targetAmount = playerOccluded ? 1f : 0f;
+        silhouetteAmount = Mathf.MoveTowards(silhouetteAmount, targetAmount, silhouetteFadeSpeed * Time.deltaTime);
     }
 
-    private void RefreshRevealTargets()
+    private void LateUpdate()
     {
-        currentRevealTargets.Clear();
-        Camera activeCamera = ResolveCamera();
+        if (Time.time >= nextSourceRefreshTime)
+        {
+            nextSourceRefreshTime = Time.time + sourceRefreshInterval;
+            RefreshSilhouetteSources();
+        }
 
+        UpdateSilhouetteVisuals();
+    }
+
+    private bool IsPlayerOccluded()
+    {
+        Camera activeCamera = ResolveCamera();
         if (activeCamera == null)
         {
-            MarkInactiveTargetsOpaque();
-            return;
+            return false;
         }
 
         BuildPlayerTargetPoints(activeCamera);
@@ -88,22 +143,15 @@ public class PlayerOcclusionFader : MonoBehaviour
         {
             if (!IsEligibleOccluder(renderer) ||
                 !GeometryUtility.TestPlanesAABB(cameraFrustumPlanes, renderer.bounds) ||
-                !BoundsBlockPlayerLineOfSight(renderer.bounds, activeCamera))
+                !RendererBlocksPlayerLineOfSight(renderer, activeCamera))
             {
                 continue;
             }
 
-            currentRevealTargets.Add(renderer);
-            if (!fadedRenderers.TryGetValue(renderer, out FadedRenderer fadedRenderer))
-            {
-                fadedRenderer = new FadedRenderer(renderer);
-                fadedRenderers.Add(renderer, fadedRenderer);
-            }
-
-            fadedRenderer.TargetAlpha = revealedAlpha;
+            return true;
         }
 
-        MarkInactiveTargetsOpaque();
+        return false;
     }
 
     private Camera ResolveCamera()
@@ -141,45 +189,6 @@ public class PlayerOcclusionFader : MonoBehaviour
         playerTargetPoints[4] = center - worldUp;
     }
 
-    private void MarkInactiveTargetsOpaque()
-    {
-        foreach (KeyValuePair<Renderer, FadedRenderer> entry in fadedRenderers)
-        {
-            if (!currentRevealTargets.Contains(entry.Key))
-            {
-                entry.Value.TargetAlpha = 1f;
-            }
-        }
-    }
-
-    private void UpdateFades()
-    {
-        removeBuffer.Clear();
-
-        foreach (KeyValuePair<Renderer, FadedRenderer> entry in fadedRenderers)
-        {
-            Renderer renderer = entry.Key;
-            FadedRenderer fadedRenderer = entry.Value;
-
-            if (renderer == null)
-            {
-                fadedRenderer.Dispose();
-                removeBuffer.Add(renderer);
-                continue;
-            }
-
-            if (fadedRenderer.Step(Time.deltaTime, fadeSpeed))
-            {
-                removeBuffer.Add(renderer);
-            }
-        }
-
-        foreach (Renderer renderer in removeBuffer)
-        {
-            fadedRenderers.Remove(renderer);
-        }
-    }
-
     private bool IsEligibleOccluder(Renderer renderer)
     {
         if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy)
@@ -187,7 +196,7 @@ public class PlayerOcclusionFader : MonoBehaviour
             return false;
         }
 
-        if (!(renderer is MeshRenderer) && !(renderer is SkinnedMeshRenderer))
+        if (renderer is SpriteRenderer || (!(renderer is MeshRenderer) && !(renderer is SkinnedMeshRenderer)))
         {
             return false;
         }
@@ -206,10 +215,11 @@ public class PlayerOcclusionFader : MonoBehaviour
         return !HasExcludedParent(renderer.transform);
     }
 
-    private bool BoundsBlockPlayerLineOfSight(Bounds bounds, Camera activeCamera)
+    private bool RendererBlocksPlayerLineOfSight(Renderer renderer, Camera activeCamera)
     {
-        Bounds paddedBounds = bounds;
+        Bounds paddedBounds = renderer.bounds;
         paddedBounds.Expand(lineOfSightPadding * 2f);
+        bool hasPreciseCollider = TryCollectBlockingColliders(renderer);
 
         Vector3 cameraPosition = activeCamera.transform.position;
 
@@ -224,8 +234,47 @@ public class PlayerOcclusionFader : MonoBehaviour
             }
 
             Ray cameraRay = new Ray(cameraPosition, toPlayer / playerDistance);
-            if (paddedBounds.IntersectRay(cameraRay, out float hitDistance) &&
-                hitDistance < playerDistance - playerBackPadding)
+            float maxDistance = playerDistance - playerBackPadding;
+            if (maxDistance <= 0f ||
+                !paddedBounds.IntersectRay(cameraRay, out float hitDistance) ||
+                hitDistance >= maxDistance)
+            {
+                continue;
+            }
+
+            if (!hasPreciseCollider || CollidersBlockRay(cameraRay, maxDistance))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool TryCollectBlockingColliders(Renderer renderer)
+    {
+        occluderColliders.Clear();
+        renderer.GetComponents(occluderColliders);
+
+        for (int i = occluderColliders.Count - 1; i >= 0; i--)
+        {
+            Collider occluderCollider = occluderColliders[i];
+            if (occluderCollider == null ||
+                !occluderCollider.enabled ||
+                !occluderCollider.gameObject.activeInHierarchy)
+            {
+                occluderColliders.RemoveAt(i);
+            }
+        }
+
+        return occluderColliders.Count > 0;
+    }
+
+    private bool CollidersBlockRay(Ray ray, float maxDistance)
+    {
+        for (int i = 0; i < occluderColliders.Count; i++)
+        {
+            if (occluderColliders[i].Raycast(ray, out RaycastHit hit, maxDistance))
             {
                 return true;
             }
@@ -268,6 +317,140 @@ public class PlayerOcclusionFader : MonoBehaviour
         return false;
     }
 
+    private void ResolveSilhouetteMaterial()
+    {
+        runtimeSilhouetteMaterial = silhouetteMaterial != null
+            ? silhouetteMaterial
+            : Resources.Load<Material>(SilhouetteResourceName);
+
+        if (runtimeSilhouetteMaterial != null)
+        {
+            return;
+        }
+
+        Shader silhouetteShader = Shader.Find(SilhouetteShaderName);
+        if (silhouetteShader == null)
+        {
+            silhouetteShader = Shader.Find("Sprites/Default");
+        }
+
+        if (silhouetteShader == null)
+        {
+            Debug.LogWarning($"{nameof(PlayerOcclusionFader)} could not find a silhouette shader.");
+            return;
+        }
+
+        runtimeSilhouetteMaterial = new Material(silhouetteShader)
+        {
+            name = "Runtime Player Occlusion Silhouette",
+            hideFlags = HideFlags.DontSave
+        };
+        ownsRuntimeSilhouetteMaterial = true;
+    }
+
+    private void RefreshSilhouetteSources()
+    {
+        RemoveMissingSilhouetteSources();
+
+        if (runtimeSilhouetteMaterial == null)
+        {
+            ResolveSilhouetteMaterial();
+            if (runtimeSilhouetteMaterial == null)
+            {
+                return;
+            }
+        }
+
+        SpriteRenderer[] sources = GetComponentsInChildren<SpriteRenderer>(true);
+        foreach (SpriteRenderer source in sources)
+        {
+            if (!IsEligibleSilhouetteSource(source) || knownSilhouetteSources.Contains(source))
+            {
+                continue;
+            }
+
+            silhouetteSprites.Add(new SilhouetteSprite(source, runtimeSilhouetteMaterial));
+            knownSilhouetteSources.Add(source);
+        }
+    }
+
+    private void RemoveMissingSilhouetteSources()
+    {
+        for (int i = silhouetteSprites.Count - 1; i >= 0; i--)
+        {
+            SilhouetteSprite silhouetteSprite = silhouetteSprites[i];
+            if (silhouetteSprite.HasSource)
+            {
+                continue;
+            }
+
+            knownSilhouetteSources.Remove(silhouetteSprite.Source);
+            silhouetteSprite.Destroy();
+            silhouetteSprites.RemoveAt(i);
+        }
+    }
+
+    private bool IsEligibleSilhouetteSource(SpriteRenderer source)
+    {
+        if (source == null || source.transform == transform || IsSilhouetteProxy(source.transform))
+        {
+            return false;
+        }
+
+        if (NameContains(source.transform, "Hitbox"))
+        {
+            return false;
+        }
+
+        return source.transform.IsChildOf(transform);
+    }
+
+    private bool IsSilhouetteProxy(Transform candidate)
+    {
+        for (Transform current = candidate; current != null && current != transform; current = current.parent)
+        {
+            if (current.name.StartsWith(SilhouetteObjectPrefix))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool NameContains(Transform candidate, string text)
+    {
+        for (Transform current = candidate; current != null && current != transform; current = current.parent)
+        {
+            if (current.name.IndexOf(text, System.StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void UpdateSilhouetteVisuals()
+    {
+        Color fillColor = silhouetteFillColor;
+        Color outlineColor = silhouetteOutlineColor;
+        fillColor.a *= silhouetteAmount;
+        outlineColor.a *= silhouetteAmount;
+        fillPropertyBlock.SetColor(ColorProperty, fillColor);
+        outlinePropertyBlock.SetColor(ColorProperty, outlineColor);
+
+        for (int i = 0; i < silhouetteSprites.Count; i++)
+        {
+            silhouetteSprites[i].Sync(
+                silhouetteAmount,
+                outlineScale,
+                silhouetteSortingOrderOffset,
+                fillPropertyBlock,
+                outlinePropertyBlock);
+        }
+    }
+
     private void OnDrawGizmosSelected()
     {
         Camera activeCamera = occlusionCamera != null ? occlusionCamera : Camera.main;
@@ -285,231 +468,109 @@ public class PlayerOcclusionFader : MonoBehaviour
         }
     }
 
-    private sealed class FadedRenderer
+    private sealed class SilhouetteSprite
     {
-        private readonly Renderer renderer;
-        private readonly Material[] originalMaterials;
-        private readonly ShadowCastingMode originalShadowCastingMode;
-        private readonly bool originalReceiveShadows;
+        private readonly SpriteRenderer source;
+        private readonly GameObject root;
+        private readonly SpriteRenderer outlineRenderer;
+        private readonly SpriteRenderer fillRenderer;
 
-        private Material[] fadeMaterials;
-        private MaterialFadeState[] materialStates;
-        private bool fadeMaterialsAssigned;
-        private float currentAlpha = 1f;
+        public SpriteRenderer Source => source;
+        public bool HasSource => source != null;
 
-        public float TargetAlpha { get; set; } = 1f;
-
-        public FadedRenderer(Renderer renderer)
+        public SilhouetteSprite(SpriteRenderer source, Material material)
         {
-            this.renderer = renderer;
-            originalMaterials = renderer.sharedMaterials;
-            originalShadowCastingMode = renderer.shadowCastingMode;
-            originalReceiveShadows = renderer.receiveShadows;
+            this.source = source;
+
+            root = new GameObject($"{SilhouetteObjectPrefix} ({source.name})")
+            {
+                hideFlags = HideFlags.DontSave
+            };
+            root.transform.SetParent(source.transform, false);
+
+            outlineRenderer = CreateRenderer("OcclusionSilhouette Outline", root.transform, material);
+            fillRenderer = CreateRenderer("OcclusionSilhouette Fill", root.transform, material);
+            root.SetActive(false);
         }
 
-        public bool Step(float deltaTime, float fadeSpeed)
+        public void Sync(
+            float amount,
+            float outlineScale,
+            int sortingOrderOffset,
+            MaterialPropertyBlock fillPropertyBlock,
+            MaterialPropertyBlock outlinePropertyBlock)
         {
-            currentAlpha = Mathf.MoveTowards(currentAlpha, TargetAlpha, fadeSpeed * deltaTime);
-
-            if (currentAlpha < 0.999f)
-            {
-                EnsureFadeMaterials();
-                ApplyAlpha(currentAlpha);
-                return false;
-            }
-
-            if (TargetAlpha >= 0.999f)
-            {
-                Restore();
-                return true;
-            }
-
-            return false;
-        }
-
-        public void Restore()
-        {
-            if (renderer != null)
-            {
-                renderer.sharedMaterials = originalMaterials;
-                renderer.shadowCastingMode = originalShadowCastingMode;
-                renderer.receiveShadows = originalReceiveShadows;
-            }
-
-            Dispose();
-            currentAlpha = 1f;
-            fadeMaterialsAssigned = false;
-        }
-
-        public void Dispose()
-        {
-            if (fadeMaterials == null)
+            if (source == null)
             {
                 return;
             }
 
-            foreach (Material material in fadeMaterials)
-            {
-                if (material == null)
-                {
-                    continue;
-                }
+            bool visible = amount > 0.001f &&
+                           source.enabled &&
+                           source.gameObject.activeInHierarchy &&
+                           source.sprite != null;
 
-                if (Application.isPlaying)
-                {
-                    Object.Destroy(material);
-                }
-                else
-                {
-                    Object.DestroyImmediate(material);
-                }
-            }
-
-            fadeMaterials = null;
-            materialStates = null;
-        }
-
-        private void EnsureFadeMaterials()
-        {
-            if (fadeMaterials == null)
-            {
-                fadeMaterials = new Material[originalMaterials.Length];
-                materialStates = new MaterialFadeState[originalMaterials.Length];
-
-                for (int i = 0; i < originalMaterials.Length; i++)
-                {
-                    Material source = originalMaterials[i];
-                    if (source == null)
-                    {
-                        continue;
-                    }
-
-                    Material fadeMaterial = new Material(source)
-                    {
-                        name = $"{source.name} (Player Reveal Fade)",
-                        hideFlags = HideFlags.DontSave
-                    };
-
-                    fadeMaterials[i] = fadeMaterial;
-                    materialStates[i] = new MaterialFadeState(fadeMaterial);
-                    ConfigureTransparentMaterial(fadeMaterial);
-                }
-            }
-
-            if (!fadeMaterialsAssigned && renderer != null)
-            {
-                renderer.sharedMaterials = fadeMaterials;
-                renderer.shadowCastingMode = ShadowCastingMode.Off;
-                renderer.receiveShadows = false;
-                fadeMaterialsAssigned = true;
-            }
-        }
-
-        private void ApplyAlpha(float alpha)
-        {
-            if (fadeMaterials == null || materialStates == null)
+            root.SetActive(visible);
+            if (!visible)
             {
                 return;
             }
 
-            for (int i = 0; i < fadeMaterials.Length; i++)
-            {
-                if (fadeMaterials[i] == null)
-                {
-                    continue;
-                }
+            CopySpriteState(source, outlineRenderer, sortingOrderOffset, outlinePropertyBlock);
+            CopySpriteState(source, fillRenderer, sortingOrderOffset + 1, fillPropertyBlock);
+            outlineRenderer.transform.localScale = Vector3.one * outlineScale;
+            fillRenderer.transform.localScale = Vector3.one;
+        }
 
-                materialStates[i].ApplyAlpha(alpha);
+        public void Destroy()
+        {
+            if (root == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                Object.Destroy(root);
+            }
+            else
+            {
+                Object.DestroyImmediate(root);
             }
         }
 
-        private static void ConfigureTransparentMaterial(Material material)
+        private static SpriteRenderer CreateRenderer(string name, Transform parent, Material material)
         {
-            material.SetOverrideTag("RenderType", "Transparent");
-            material.renderQueue = (int)RenderQueue.Transparent;
-
-            if (material.HasProperty("_Surface"))
+            GameObject rendererObject = new GameObject(name)
             {
-                material.SetFloat("_Surface", 1f);
-            }
+                hideFlags = HideFlags.DontSave
+            };
+            rendererObject.transform.SetParent(parent, false);
 
-            if (material.HasProperty("_Blend"))
-            {
-                material.SetFloat("_Blend", 0f);
-            }
-
-            if (material.HasProperty("_SrcBlend"))
-            {
-                material.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
-            }
-
-            if (material.HasProperty("_DstBlend"))
-            {
-                material.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
-            }
-
-            if (material.HasProperty("_SrcBlendAlpha"))
-            {
-                material.SetFloat("_SrcBlendAlpha", (float)BlendMode.One);
-            }
-
-            if (material.HasProperty("_DstBlendAlpha"))
-            {
-                material.SetFloat("_DstBlendAlpha", (float)BlendMode.OneMinusSrcAlpha);
-            }
-
-            if (material.HasProperty("_ZWrite"))
-            {
-                material.SetFloat("_ZWrite", 0f);
-            }
-
-            if (material.HasProperty("_AlphaClip"))
-            {
-                material.SetFloat("_AlphaClip", 0f);
-            }
-
-            if (material.HasProperty("_Mode"))
-            {
-                material.SetFloat("_Mode", 2f);
-            }
-
-            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            material.DisableKeyword("_ALPHATEST_ON");
-        }
-    }
-
-    private readonly struct MaterialFadeState
-    {
-        private readonly Material material;
-        private readonly bool hasBaseColor;
-        private readonly bool hasColor;
-        private readonly Color originalBaseColor;
-        private readonly Color originalColor;
-
-        public MaterialFadeState(Material material)
-        {
-            this.material = material;
-            hasBaseColor = material.HasProperty("_BaseColor");
-            hasColor = material.HasProperty("_Color");
-            originalBaseColor = hasBaseColor ? material.GetColor("_BaseColor") : Color.white;
-            originalColor = hasColor ? material.GetColor("_Color") : Color.white;
+            SpriteRenderer renderer = rendererObject.AddComponent<SpriteRenderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            return renderer;
         }
 
-        public void ApplyAlpha(float alpha)
+        private static void CopySpriteState(
+            SpriteRenderer source,
+            SpriteRenderer target,
+            int sortingOrderOffset,
+            MaterialPropertyBlock propertyBlock)
         {
-            if (hasBaseColor)
-            {
-                Color color = originalBaseColor;
-                color.a *= alpha;
-                material.SetColor("_BaseColor", color);
-            }
-
-            if (hasColor)
-            {
-                Color color = originalColor;
-                color.a *= alpha;
-                material.SetColor("_Color", color);
-            }
+            target.sprite = source.sprite;
+            target.flipX = source.flipX;
+            target.flipY = source.flipY;
+            target.drawMode = source.drawMode;
+            target.size = source.size;
+            target.tileMode = source.tileMode;
+            target.maskInteraction = SpriteMaskInteraction.None;
+            target.sortingLayerID = source.sortingLayerID;
+            target.sortingOrder = source.sortingOrder + sortingOrderOffset;
+            target.color = new Color(1f, 1f, 1f, source.color.a);
+            target.SetPropertyBlock(propertyBlock);
         }
     }
 }
