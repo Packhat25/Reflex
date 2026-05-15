@@ -4694,8 +4694,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::EnemyController
   enemyStateDislpay: 
   animator: {fileID: 6563087241451457012}
-  visionRange: 10
-  visionAngle: 180
+  visionRange: 15
+  visionAngle: 270
   chaseLeashRange: 30
   lastKnownPlayerPosition: {x: 0, y: 0, z: 0}
   detectionLayers:
