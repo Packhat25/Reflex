@@ -2,6 +2,12 @@ using UnityEngine;
 
 public class LevelDoor : MonoBehaviour, IInteractable
 {
+    [Header("Generation")]
+    [SerializeField] private bool participateInGeneration = true;
+    [SerializeField] private int routeOrder = -1;
+    [SerializeField] private string doorId;
+
+    [Header("Prompts")]
     [SerializeField] private string unlockedPromptPrefix = "Enter";
     [SerializeField] private string noRoutePrompt = "Door inactive";
     [SerializeField] private string roomLockedPrompt = "Clear room first";
@@ -10,6 +16,9 @@ public class LevelDoor : MonoBehaviour, IInteractable
     private bool _hasRoute;
 
     public int DoorIndex { get; private set; }
+    public bool ParticipateInGeneration => participateInGeneration;
+    public int RouteOrder => routeOrder;
+    public string DoorId => doorId;
 
     public void Configure(LevelDoorRoute route)
     {

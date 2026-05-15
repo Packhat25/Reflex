@@ -17,9 +17,13 @@ public static class LevelDoorAutoBinder
             for (int i = 0; i < candidates.Count; i++)
             {
                 LevelDoor door = candidates[i].gameObject.AddComponent<LevelDoor>();
-                EnsureInteractionCollider(door);
                 doors.Add(door);
             }
+        }
+
+        for (int i = 0; i < doors.Count; i++)
+        {
+            EnsureInteractionCollider(doors[i]);
         }
 
         SortDoors(doors);
@@ -28,10 +32,20 @@ public static class LevelDoorAutoBinder
 
     private static List<LevelDoor> FindExistingDoors()
     {
-        return new List<LevelDoor>(
-            UnityEngine.Object.FindObjectsByType<LevelDoor>(
-                FindObjectsInactive.Exclude,
-                FindObjectsSortMode.None));
+        LevelDoor[] foundDoors = UnityEngine.Object.FindObjectsByType<LevelDoor>(
+            FindObjectsInactive.Exclude,
+            FindObjectsSortMode.None);
+
+        List<LevelDoor> generationDoors = new List<LevelDoor>();
+        for (int i = 0; i < foundDoors.Length; i++)
+        {
+            if (foundDoors[i] != null && foundDoors[i].ParticipateInGeneration)
+            {
+                generationDoors.Add(foundDoors[i]);
+            }
+        }
+
+        return generationDoors;
     }
 
     private static List<Transform> FindDoorCandidates()
@@ -100,6 +114,19 @@ public static class LevelDoorAutoBinder
 
     private static int CompareDoors(LevelDoor left, LevelDoor right)
     {
+        bool leftHasOrder = left.RouteOrder >= 0;
+        bool rightHasOrder = right.RouteOrder >= 0;
+
+        if (leftHasOrder && rightHasOrder && left.RouteOrder != right.RouteOrder)
+        {
+            return left.RouteOrder.CompareTo(right.RouteOrder);
+        }
+
+        if (leftHasOrder != rightHasOrder)
+        {
+            return leftHasOrder ? -1 : 1;
+        }
+
         Vector3 leftPosition = left.transform.position;
         Vector3 rightPosition = right.transform.position;
 

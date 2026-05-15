@@ -38,6 +38,9 @@ public class LevelRunManager : MonoBehaviour
 
     private static LevelRunManager _instance;
 
+    [Header("Profile")]
+    [SerializeField] private LevelGenerationProfile generationProfile;
+
     [Header("Scene Pool")]
     [SerializeField] private string lobbySceneName = "Lobby";
     [SerializeField] private string[] roomSceneNames =
@@ -72,6 +75,7 @@ public class LevelRunManager : MonoBehaviour
 
     private readonly Dictionary<int, GeneratedLevelNode> _nodesById = new Dictionary<int, GeneratedLevelNode>();
     private readonly HashSet<int> _clearedNodeIds = new HashSet<int>();
+    private LevelGenerationRuntimeOverrides _runtimeOverrides;
     private int _currentNodeId;
     private int _pendingNodeId = -1;
     private int _deepestDepthReached;
@@ -107,7 +111,7 @@ public class LevelRunManager : MonoBehaviour
     {
         get
         {
-            return !lockDoorsWhileRoomActive ||
+            return !LockDoorsWhileRoomActive ||
                    IsCurrentNodeCleared ||
                    !EmotionEngine.HasInstance ||
                    !EmotionEngine.Instance.IsRoomActive;
@@ -153,6 +157,7 @@ public class LevelRunManager : MonoBehaviour
 
         _instance = this;
         DontDestroyOnLoad(gameObject);
+        LoadDefaultProfileIfNeeded();
         GenerateNewRun();
         SceneManager.sceneLoaded += HandleSceneLoaded;
     }
@@ -188,18 +193,19 @@ public class LevelRunManager : MonoBehaviour
         _currentNodeId = 0;
         _pendingNodeId = -1;
         _deepestDepthReached = 0;
-        _activeSeed = fixedSeed != 0 ? fixedSeed : unchecked((int)DateTime.UtcNow.Ticks);
+        int configuredSeed = FixedSeed;
+        _activeSeed = configuredSeed != 0 ? configuredSeed : unchecked((int)DateTime.UtcNow.Ticks);
 
         System.Random random = new System.Random(_activeSeed);
 
-        GeneratedLevelNode lobbyNode = CreateNode(0, 0, lobbySceneName);
+        GeneratedLevelNode lobbyNode = CreateNode(0, 0, LobbySceneName);
         _nodesById.Add(lobbyNode.id, lobbyNode);
         _clearedNodeIds.Add(lobbyNode.id);
 
-        string previousScene = lobbySceneName;
-        for (int depth = 1; depth <= generatedRoomCount; depth++)
+        string previousScene = LobbySceneName;
+        for (int depth = 1; depth <= GeneratedRoomCount; depth++)
         {
-            string sceneName = PickRoomScene(random, previousScene);
+            string sceneName = PickRoomScene(random, previousScene, depth);
             GeneratedLevelNode node = CreateNode(depth, depth, sceneName);
             _nodesById.Add(node.id, node);
             previousScene = sceneName;
@@ -208,7 +214,7 @@ public class LevelRunManager : MonoBehaviour
         BuildForwardConnections(random);
         ConnectLastRoomToLobby();
 
-        if (logGeneratedGraph)
+        if (LogGeneratedGraph)
         {
             Debug.Log(BuildGraphLog());
         }
@@ -236,7 +242,7 @@ public class LevelRunManager : MonoBehaviour
 
         bool returningToLobby = destination.id == 0 && _currentNodeId != 0;
         _pendingNodeId = destination.id;
-        _regenerateOnNextLobbyLoad = regenerateWhenReturningToLobby && returningToLobby;
+        _regenerateOnNextLobbyLoad = RegenerateWhenReturningToLobby && returningToLobby;
 
         SceneManager.LoadScene(destination.sceneName, LoadSceneMode.Single);
     }
@@ -258,7 +264,7 @@ public class LevelRunManager : MonoBehaviour
             SyncCurrentNodeToLoadedScene(scene.name);
         }
 
-        if (_regenerateOnNextLobbyLoad && SceneNameEquals(scene.name, lobbySceneName))
+        if (_regenerateOnNextLobbyLoad && SceneNameEquals(scene.name, LobbySceneName))
         {
             _regenerateOnNextLobbyLoad = false;
             GenerateNewRun();
@@ -268,7 +274,7 @@ public class LevelRunManager : MonoBehaviour
         RefreshCurrentLevelProgression(scene);
         AnnounceLevelEntered();
 
-        if (autoBindSceneDoors)
+        if (AutoBindSceneDoors)
         {
             ConfigureDoorsForCurrentScene(scene.name);
         }
@@ -306,14 +312,65 @@ public class LevelRunManager : MonoBehaviour
 
         if (scenePlayer != null && scenePlayer != _persistentPlayer)
         {
-            _persistentPlayer.transform.SetPositionAndRotation(
-                scenePlayer.transform.position,
-                scenePlayer.transform.rotation);
+            MovePersistentPlayerTo(scenePlayer.transform);
 
             Destroy(scenePlayer.gameObject);
         }
+        else if (scenePlayer == null && TryGetSpawnPoint(loadedScene, out LevelPlayerSpawnPoint spawnPoint))
+        {
+            MovePersistentPlayerTo(spawnPoint.transform);
+        }
 
         RefreshPlayerSceneReferences(_persistentPlayer);
+    }
+
+    private void MovePersistentPlayerTo(Transform target)
+    {
+        if (_persistentPlayer == null || target == null)
+        {
+            return;
+        }
+
+        CharacterController controller = _persistentPlayer.GetComponent<CharacterController>();
+        bool controllerWasEnabled = controller != null && controller.enabled;
+        if (controllerWasEnabled)
+        {
+            controller.enabled = false;
+        }
+
+        _persistentPlayer.transform.SetPositionAndRotation(target.position, target.rotation);
+
+        if (controllerWasEnabled)
+        {
+            controller.enabled = true;
+        }
+    }
+
+    private bool TryGetSpawnPoint(Scene scene, out LevelPlayerSpawnPoint spawnPoint)
+    {
+        LevelPlayerSpawnPoint[] spawnPoints = FindObjectsByType<LevelPlayerSpawnPoint>(
+            FindObjectsInactive.Exclude,
+            FindObjectsSortMode.None);
+
+        spawnPoint = null;
+
+        for (int i = 0; i < spawnPoints.Length; i++)
+        {
+            LevelPlayerSpawnPoint candidate = spawnPoints[i];
+            if (candidate == null || candidate.gameObject.scene != scene)
+            {
+                continue;
+            }
+
+            if (spawnPoint == null ||
+                candidate.Priority > spawnPoint.Priority ||
+                (candidate.Priority == spawnPoint.Priority && candidate.DefaultSpawn && !spawnPoint.DefaultSpawn))
+            {
+                spawnPoint = candidate;
+            }
+        }
+
+        return spawnPoint != null;
     }
 
     private PlayerManager GetFirstPlayer(PlayerManager[] players)
@@ -431,7 +488,27 @@ public class LevelRunManager : MonoBehaviour
 
         _deepestDepthReached = Mathf.Max(_deepestDepthReached, node.depth);
 
-        if (node.id == 0 || (unlockLevelsWithoutSpawners && !SceneHasActiveSpawner(scene)))
+        LevelRoomDefinition roomDefinition = GetRoomDefinition(scene);
+        LevelRoomClearRule clearRule = roomDefinition != null
+            ? roomDefinition.ClearRule
+            : LevelRoomClearRule.UseGlobalDefaults;
+
+        if (node.id == 0 || clearRule == LevelRoomClearRule.AlwaysUnlocked)
+        {
+            MarkCurrentNodeCleared("room configured as always unlocked");
+            return;
+        }
+
+        if (clearRule == LevelRoomClearRule.Manual)
+        {
+            return;
+        }
+
+        bool shouldUnlockWithoutSpawners =
+            clearRule == LevelRoomClearRule.EnemySpawners ||
+            (clearRule == LevelRoomClearRule.UseGlobalDefaults && UnlockLevelsWithoutSpawners);
+
+        if (shouldUnlockWithoutSpawners && !SceneHasActiveSpawner(scene))
         {
             MarkCurrentNodeCleared("no active spawners");
         }
@@ -456,12 +533,18 @@ public class LevelRunManager : MonoBehaviour
 
     private void HandleRoomEvaluated(EmotionRoomReport report)
     {
-        if (!unlockCurrentLevelAfterClear)
+        if (!UnlockCurrentLevelAfterClear)
         {
             return;
         }
 
         MarkCurrentNodeCleared("room cleared");
+    }
+
+    public void MarkCurrentLevelClearedFromScene(string source)
+    {
+        string reason = string.IsNullOrWhiteSpace(source) ? "scene script requested clear" : source + " requested clear";
+        MarkCurrentNodeCleared(reason);
     }
 
     private void MarkCurrentNodeCleared(string reason)
@@ -474,15 +557,26 @@ public class LevelRunManager : MonoBehaviour
 
         LevelCleared?.Invoke(node.id, node.depth, node.sceneName);
 
-        if (disableSpawnersAfterLevelClear && node.id != 0)
+        if (ShouldDisableSpawnersAfterClear() && node.id != 0)
         {
             DisableCurrentSceneSpawners();
         }
 
-        if (logProgression)
+        if (LogProgression)
         {
             Debug.Log("Level cleared: node " + node.id + " depth " + node.depth + " (" + node.sceneName + ") because " + reason + ".");
         }
+    }
+
+    private bool ShouldDisableSpawnersAfterClear()
+    {
+        LevelRoomDefinition roomDefinition = GetRoomDefinition(SceneManager.GetActiveScene());
+        if (roomDefinition != null && roomDefinition.HasSpawnerDisableOverride)
+        {
+            return roomDefinition.DisableSpawnersAfterClear;
+        }
+
+        return DisableSpawnersAfterLevelClear;
     }
 
     private void DisableCurrentSceneSpawners()
@@ -511,7 +605,7 @@ public class LevelRunManager : MonoBehaviour
 
         LevelEntered?.Invoke(node.id, node.depth, node.sceneName);
 
-        if (logProgression)
+        if (LogProgression)
         {
             Debug.Log("Level entered: node " + node.id + " depth " + node.depth + " (" + node.sceneName + "). Cleared: " + IsCurrentNodeCleared);
         }
@@ -539,7 +633,7 @@ public class LevelRunManager : MonoBehaviour
             }
         }
 
-        if (logDoorBinding && doors.Count > 0)
+        if (LogDoorBinding && doors.Count > 0)
         {
             Debug.Log("Bound " + Mathf.Min(doors.Count, currentNode.connections.Count) +
                       " generated door route(s) in " + sceneName + " from node " + currentNode.id + ".");
@@ -585,7 +679,7 @@ public class LevelRunManager : MonoBehaviour
             return;
         }
 
-        if (SceneNameEquals(sceneName, lobbySceneName))
+        if (SceneNameEquals(sceneName, LobbySceneName))
         {
             _currentNodeId = 0;
             return;
@@ -613,7 +707,7 @@ public class LevelRunManager : MonoBehaviour
 
     private void BuildForwardConnections(System.Random random)
     {
-        for (int nodeId = 0; nodeId < generatedRoomCount; nodeId++)
+        for (int nodeId = 0; nodeId < GeneratedRoomCount; nodeId++)
         {
             GeneratedLevelNode node = _nodesById[nodeId];
             List<int> possibleDestinations = GetPossibleForwardDestinations(nodeId);
@@ -623,8 +717,8 @@ public class LevelRunManager : MonoBehaviour
                 continue;
             }
 
-            int cappedMin = Mathf.Clamp(minDoorChoices, 1, possibleDestinations.Count);
-            int cappedMax = Mathf.Clamp(maxDoorChoices, cappedMin, possibleDestinations.Count);
+            int cappedMin = Mathf.Clamp(MinDoorChoices, 1, possibleDestinations.Count);
+            int cappedMax = Mathf.Clamp(MaxDoorChoices, cappedMin, possibleDestinations.Count);
             int exitCount = random.Next(cappedMin, cappedMax + 1);
 
             AddConnection(node, nodeId + 1);
@@ -644,7 +738,7 @@ public class LevelRunManager : MonoBehaviour
     private List<int> GetPossibleForwardDestinations(int nodeId)
     {
         List<int> destinations = new List<int>();
-        int maxDestination = Mathf.Min(generatedRoomCount, nodeId + maxForwardRoomSkip);
+        int maxDestination = Mathf.Min(GeneratedRoomCount, nodeId + MaxForwardRoomSkip);
 
         for (int destinationId = nodeId + 1; destinationId <= maxDestination; destinationId++)
         {
@@ -656,7 +750,7 @@ public class LevelRunManager : MonoBehaviour
 
     private void ConnectLastRoomToLobby()
     {
-        GeneratedLevelNode finalRoom = _nodesById[generatedRoomCount];
+        GeneratedLevelNode finalRoom = _nodesById[GeneratedRoomCount];
         AddConnection(finalRoom, 0);
     }
 
@@ -682,8 +776,13 @@ public class LevelRunManager : MonoBehaviour
         return false;
     }
 
-    private string PickRoomScene(System.Random random, string previousScene)
+    private string PickRoomScene(System.Random random, string previousScene, int depth)
     {
+        if (TryPickProfileRoomScene(random, previousScene, depth, out string profileSceneName))
+        {
+            return profileSceneName;
+        }
+
         List<string> validRooms = new List<string>();
 
         for (int i = 0; i < roomSceneNames.Length; i++)
@@ -696,7 +795,7 @@ public class LevelRunManager : MonoBehaviour
 
         if (validRooms.Count == 0)
         {
-            return lobbySceneName;
+            return LobbySceneName;
         }
 
         if (validRooms.Count == 1)
@@ -716,12 +815,72 @@ public class LevelRunManager : MonoBehaviour
         return validRooms[random.Next(validRooms.Count)];
     }
 
+    private bool TryPickProfileRoomScene(System.Random random, string previousScene, int depth, out string sceneName)
+    {
+        sceneName = null;
+
+        if (generationProfile == null || generationProfile.RoomScenes == null)
+        {
+            return false;
+        }
+
+        List<LevelSceneCandidate> candidates = new List<LevelSceneCandidate>();
+        List<LevelSceneCandidate> repeatSafeCandidates = new List<LevelSceneCandidate>();
+
+        for (int i = 0; i < generationProfile.RoomScenes.Length; i++)
+        {
+            LevelSceneCandidate candidate = generationProfile.RoomScenes[i];
+            if (candidate == null || !candidate.IsValidForDepth(depth))
+            {
+                continue;
+            }
+
+            candidates.Add(candidate);
+
+            if (candidate.CanRepeatConsecutively || !SceneNameEquals(candidate.SceneName, previousScene))
+            {
+                repeatSafeCandidates.Add(candidate);
+            }
+        }
+
+        List<LevelSceneCandidate> pickPool = repeatSafeCandidates.Count > 0 ? repeatSafeCandidates : candidates;
+        if (pickPool.Count == 0)
+        {
+            return false;
+        }
+
+        int totalWeight = 0;
+        for (int i = 0; i < pickPool.Count; i++)
+        {
+            totalWeight += pickPool[i].Weight;
+        }
+
+        if (totalWeight <= 0)
+        {
+            return false;
+        }
+
+        int roll = random.Next(0, totalWeight);
+        for (int i = 0; i < pickPool.Count; i++)
+        {
+            roll -= pickPool[i].Weight;
+            if (roll < 0)
+            {
+                sceneName = pickPool[i].SceneName;
+                return true;
+            }
+        }
+
+        sceneName = pickPool[pickPool.Count - 1].SceneName;
+        return true;
+    }
+
     private string BuildGraphLog()
     {
         StringBuilder builder = new StringBuilder();
         builder.AppendLine("Generated level run seed: " + _activeSeed);
 
-        for (int i = 0; i <= generatedRoomCount; i++)
+        for (int i = 0; i <= GeneratedRoomCount; i++)
         {
             GeneratedLevelNode node = _nodesById[i];
             builder.Append("Node ");
@@ -764,6 +923,93 @@ public class LevelRunManager : MonoBehaviour
     {
         return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
     }
+
+    private void LoadDefaultProfileIfNeeded()
+    {
+        if (generationProfile == null)
+        {
+            generationProfile = Resources.Load<LevelGenerationProfile>("LevelGeneration/Default Level Generation Profile");
+        }
+    }
+
+    public void SetGenerationProfile(LevelGenerationProfile profile, bool regenerateRun)
+    {
+        generationProfile = profile;
+        if (regenerateRun)
+        {
+            GenerateNewRun();
+            ConfigureDoorsForCurrentScene(SceneManager.GetActiveScene().name);
+        }
+    }
+
+    public void ApplyRuntimeOverrides(LevelGenerationRuntimeOverrides overrides, bool regenerateRun)
+    {
+        _runtimeOverrides = overrides;
+        if (regenerateRun)
+        {
+            GenerateNewRun();
+            ConfigureDoorsForCurrentScene(SceneManager.GetActiveScene().name);
+        }
+    }
+
+    public void ClearRuntimeOverrides(bool regenerateRun)
+    {
+        _runtimeOverrides = default;
+        if (regenerateRun)
+        {
+            GenerateNewRun();
+            ConfigureDoorsForCurrentScene(SceneManager.GetActiveScene().name);
+        }
+    }
+
+    private LevelRoomDefinition GetRoomDefinition(Scene scene)
+    {
+        LevelRoomDefinition[] definitions = FindObjectsByType<LevelRoomDefinition>(
+            FindObjectsInactive.Exclude,
+            FindObjectsSortMode.None);
+
+        for (int i = 0; i < definitions.Length; i++)
+        {
+            if (definitions[i] != null && definitions[i].gameObject.scene == scene)
+            {
+                return definitions[i];
+            }
+        }
+
+        return null;
+    }
+
+    private string LobbySceneName => generationProfile != null ? generationProfile.LobbySceneName : lobbySceneName;
+
+    private int GeneratedRoomCount => _runtimeOverrides.overrideGeneratedRoomCount
+        ? Mathf.Max(1, _runtimeOverrides.generatedRoomCount)
+        : generationProfile != null ? generationProfile.GeneratedRoomCount : Mathf.Max(1, generatedRoomCount);
+
+    private int MinDoorChoices => _runtimeOverrides.overrideDoorChoices
+        ? Mathf.Max(1, _runtimeOverrides.minDoorChoices)
+        : generationProfile != null ? generationProfile.MinDoorChoices : Mathf.Max(1, minDoorChoices);
+
+    private int MaxDoorChoices => _runtimeOverrides.overrideDoorChoices
+        ? Mathf.Max(MinDoorChoices, _runtimeOverrides.maxDoorChoices)
+        : generationProfile != null ? generationProfile.MaxDoorChoices : Mathf.Max(MinDoorChoices, maxDoorChoices);
+
+    private int MaxForwardRoomSkip => _runtimeOverrides.overrideMaxForwardRoomSkip
+        ? Mathf.Max(1, _runtimeOverrides.maxForwardRoomSkip)
+        : generationProfile != null ? generationProfile.MaxForwardRoomSkip : Mathf.Max(1, maxForwardRoomSkip);
+
+    private int FixedSeed => _runtimeOverrides.overrideFixedSeed
+        ? _runtimeOverrides.fixedSeed
+        : generationProfile != null ? generationProfile.FixedSeed : fixedSeed;
+
+    private bool RegenerateWhenReturningToLobby => generationProfile != null ? generationProfile.RegenerateWhenReturningToLobby : regenerateWhenReturningToLobby;
+    private bool LockDoorsWhileRoomActive => generationProfile != null ? generationProfile.LockDoorsWhileRoomActive : lockDoorsWhileRoomActive;
+    private bool AutoBindSceneDoors => generationProfile != null ? generationProfile.AutoBindSceneDoors : autoBindSceneDoors;
+    private bool UnlockCurrentLevelAfterClear => generationProfile != null ? generationProfile.UnlockCurrentLevelAfterClear : unlockCurrentLevelAfterClear;
+    private bool UnlockLevelsWithoutSpawners => generationProfile != null ? generationProfile.UnlockLevelsWithoutSpawners : unlockLevelsWithoutSpawners;
+    private bool DisableSpawnersAfterLevelClear => generationProfile != null ? generationProfile.DisableSpawnersAfterLevelClear : disableSpawnersAfterLevelClear;
+    private bool LogGeneratedGraph => generationProfile != null ? generationProfile.LogGeneratedGraph : logGeneratedGraph;
+    private bool LogDoorBinding => generationProfile != null ? generationProfile.LogDoorBinding : logDoorBinding;
+    private bool LogProgression => generationProfile != null ? generationProfile.LogProgression : logProgression;
 }
 
 public class SceneCameraFollow : MonoBehaviour
