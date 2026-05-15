@@ -2162,7 +2162,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6838159156453297160, guid: a925df145e636eb44badd9ad5d83ef70, type: 3}
       propertyPath: m_IsActive
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -6874,6 +6874,26 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 1499716830720860322, guid: d08830adefeaced45858e30a24bd8b9f, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 1499716830720860322, guid: d08830adefeaced45858e30a24bd8b9f, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 4
+      objectReference: {fileID: 0}
+    - target: {fileID: 1499716830720860322, guid: d08830adefeaced45858e30a24bd8b9f, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 1499716830720860322, guid: d08830adefeaced45858e30a24bd8b9f, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1499716830720860322, guid: d08830adefeaced45858e30a24bd8b9f, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 3569697015160886219, guid: d08830adefeaced45858e30a24bd8b9f, type: 3}
       propertyPath: m_LocalPosition.x
       value: 24.560556
@@ -6917,6 +6937,22 @@ PrefabInstance:
     - target: {fileID: 7718681091217661635, guid: d08830adefeaced45858e30a24bd8b9f, type: 3}
       propertyPath: m_Name
       value: Drone
+      objectReference: {fileID: 0}
+    - target: {fileID: 7718681091217661635, guid: d08830adefeaced45858e30a24bd8b9f, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9028216469844371152, guid: d08830adefeaced45858e30a24bd8b9f, type: 3}
+      propertyPath: m_Size.x
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 9028216469844371152, guid: d08830adefeaced45858e30a24bd8b9f, type: 3}
+      propertyPath: m_Size.y
+      value: 4
+      objectReference: {fileID: 0}
+    - target: {fileID: 9028216469844371152, guid: d08830adefeaced45858e30a24bd8b9f, type: 3}
+      propertyPath: m_Size.z
+      value: 4
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -7970,6 +8006,17 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 1671bb51b1fd7a64497b4ddab764c0cc, type: 3}
+--- !u!114 &798001936 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 9153157274374385591, guid: 938bc88f97c29e44ea3559fc8892d46f, type: 3}
+  m_PrefabInstance: {fileID: 2062716881}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: adaa96ffa8c6cae4bb0eb379cad2e0f5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyController
 --- !u!1 &811220874
 GameObject:
   m_ObjectHideFlags: 0
@@ -21756,7 +21803,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7944521560814825142, guid: 3f16148ceae8dc64d84d129c75fdc81a, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -22995,6 +23042,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: 'Tank '
       objectReference: {fileID: 0}
+    - target: {fileID: 4921056880241442724, guid: 938bc88f97c29e44ea3559fc8892d46f, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 4964447266367886277, guid: 938bc88f97c29e44ea3559fc8892d46f, type: 3}
       propertyPath: m_LocalPosition.x
       value: 39.86
@@ -23043,6 +23094,10 @@ PrefabInstance:
       propertyPath: cameraObj
       value: 
       objectReference: {fileID: 443824927}
+    - target: {fileID: 8760417516949543865, guid: 938bc88f97c29e44ea3559fc8892d46f, type: 3}
+      propertyPath: enemyController
+      value: 
+      objectReference: {fileID: 798001936}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
