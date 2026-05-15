@@ -15,6 +15,10 @@ public class PlayerMovementManagement : MonoBehaviour
     [SerializeField] private float rotationSpeed = 10f;
     [SerializeField] private LayerMask dashCollisionMask = ~0; // Ensure this excludes the Player layer
     [SerializeField] private float dashCollisionBuffer = 0.05f;
+
+    [Header("Hazard Detection")]
+    [SerializeField] private LayerMask dashHazardMask = ~0;
+    [SerializeField] private float dashHazardCheckBuffer = 0.1f;
     
     [Header("VFX")]
     public TrailRenderer dashTrail;
@@ -25,7 +29,11 @@ public class PlayerMovementManagement : MonoBehaviour
     private bool isSprinting;
     private bool isOnGround;
     public bool isDashing = false;
+    public bool isKnockedBack { get; private set; }
     private float lastDashTime;
+    private Coroutine knockbackRoutine;
+    private float nextHazardKnockbackTime;
+    private readonly Collider[] dashHazardResults = new Collider[16];
     private PlayerInput userInput;
     private InputAction moveAction;
     private InputAction dashAction;
@@ -53,10 +61,10 @@ public class PlayerMovementManagement : MonoBehaviour
 
     void Update()
     {
-        if (isDashing) return;
+        if (isDashing || isKnockedBack) return;
 
         ReadInputs();
-        if (isDashing) return;
+        if (isDashing || isKnockedBack) return;
 
         if (playerManager.isAttacking)
         {
@@ -112,9 +120,14 @@ public class PlayerMovementManagement : MonoBehaviour
         bool canPhase = !IsDestinationBlocked(dashDir, totalDashDistance);
 
         float startTime = Time.time;
-        while (Time.time < startTime + dashDuration)
+        while (Time.time < startTime + dashDuration && !isKnockedBack)
         {
             Vector3 dashStep = dashDir * totalDashSpeed * Time.deltaTime;
+
+            if (TryTriggerDashHazard(dashDir, dashStep.magnitude + dashHazardCheckBuffer))
+            {
+                break;
+            }
             
             if (canPhase)
             {
@@ -134,7 +147,72 @@ public class PlayerMovementManagement : MonoBehaviour
         if (dashTrail != null) dashTrail.emitting = false;
         gameObject.layer = originalLayer;
         isDashing = false;
-        currentVelocity = dashDir * GetCurrentSpeed();
+        currentVelocity = isKnockedBack ? Vector3.zero : dashDir * GetCurrentSpeed();
+    }
+
+    public void ApplyKnockback(Vector3 direction, float distance, float duration)
+    {
+        TryStartKnockback(direction, distance, duration);
+    }
+
+    public bool TryApplyHazardKnockback(Vector3 direction, float distance, float duration, float cooldown, bool ignoreCooldown = false)
+    {
+        if (isKnockedBack || (!ignoreCooldown && Time.time < nextHazardKnockbackTime))
+        {
+            return false;
+        }
+
+        if (!TryStartKnockback(direction, distance, duration))
+        {
+            return false;
+        }
+
+        nextHazardKnockbackTime = Time.time + Mathf.Max(cooldown, duration);
+        return true;
+    }
+
+    private bool TryStartKnockback(Vector3 direction, float distance, float duration)
+    {
+        if (!isActiveAndEnabled || playerController == null)
+        {
+            return false;
+        }
+
+        direction.y = 0f;
+        if (direction.sqrMagnitude <= 0.0001f)
+        {
+            return false;
+        }
+
+        if (knockbackRoutine != null)
+        {
+            StopCoroutine(knockbackRoutine);
+        }
+
+        knockbackRoutine = StartCoroutine(KnockbackCoroutine(direction.normalized, distance, duration));
+        return true;
+    }
+
+    private IEnumerator KnockbackCoroutine(Vector3 direction, float distance, float duration)
+    {
+        isKnockedBack = true;
+        currentVelocity = Vector3.zero;
+
+        float elapsed = 0f;
+        float safeDuration = Mathf.Max(0.01f, duration);
+        float speed = Mathf.Max(0f, distance) / safeDuration;
+
+        while (elapsed < safeDuration)
+        {
+            float remainingTime = safeDuration - elapsed;
+            float stepTime = Mathf.Min(Time.deltaTime, remainingTime);
+            playerController.Move(direction * speed * stepTime);
+            elapsed += stepTime;
+            yield return null;
+        }
+
+        isKnockedBack = false;
+        knockbackRoutine = null;
     }
 
     private bool IsDestinationBlocked(Vector3 direction, float distance)
@@ -196,6 +274,122 @@ public class PlayerMovementManagement : MonoBehaviour
         if (float.IsInfinity(closest)) return false;
         blockedDistance = closest;
         return true;
+    }
+
+    private bool TryTriggerDashHazard(Vector3 incomingDirection, float castDistance)
+    {
+        if (playerManager == null || playerController == null)
+        {
+            return false;
+        }
+
+        if (TryTriggerOverlappingHazard(incomingDirection))
+        {
+            return true;
+        }
+
+        if (castDistance <= 0f || incomingDirection.sqrMagnitude <= 0.0001f)
+        {
+            return false;
+        }
+
+        GetControllerCapsuleAt(transform.position, out Vector3 bottom, out Vector3 top, out float radius);
+        RaycastHit[] hits = Physics.CapsuleCastAll(bottom, top, radius, incomingDirection.normalized, castDistance, dashHazardMask, QueryTriggerInteraction.Collide);
+        LazerKnockback closestHazard = null;
+        DmgArea closestDamageArea = null;
+        float closestDistance = Mathf.Infinity;
+        float closestDamageDistance = Mathf.Infinity;
+
+        foreach (RaycastHit hit in hits)
+        {
+            if (hit.collider == null || !hit.collider.isTrigger || IsOwnCollider(hit.collider))
+            {
+                continue;
+            }
+
+            DmgArea damageArea = hit.collider.GetComponentInParent<DmgArea>();
+            if (damageArea != null && hit.distance < closestDamageDistance)
+            {
+                closestDamageArea = damageArea;
+                closestDamageDistance = hit.distance;
+            }
+
+            LazerKnockback hazard = hit.collider.GetComponentInParent<LazerKnockback>();
+            if (hazard == null || hit.distance >= closestDistance)
+            {
+                continue;
+            }
+
+            closestHazard = hazard;
+            closestDistance = hit.distance;
+        }
+
+        closestDamageArea?.TryApplyDashDamage(playerManager);
+        return closestHazard != null && closestHazard.TryKnockback(playerManager, incomingDirection, true);
+    }
+
+    private bool TryTriggerOverlappingHazard(Vector3 incomingDirection)
+    {
+        GetControllerCapsuleAt(transform.position, out Vector3 bottom, out Vector3 top, out float radius);
+        int hitCount = Physics.OverlapCapsuleNonAlloc(bottom, top, radius, dashHazardResults, dashHazardMask, QueryTriggerInteraction.Collide);
+        LazerKnockback closestHazard = null;
+        DmgArea closestDamageArea = null;
+        float closestDistance = Mathf.Infinity;
+        float closestDamageDistance = Mathf.Infinity;
+        Vector3 center = transform.TransformPoint(playerController.center);
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            Collider hit = dashHazardResults[i];
+            dashHazardResults[i] = null;
+
+            if (hit == null || !hit.isTrigger || IsOwnCollider(hit))
+            {
+                continue;
+            }
+
+            DmgArea damageArea = hit.GetComponentInParent<DmgArea>();
+            float distance = (hit.ClosestPoint(center) - center).sqrMagnitude;
+
+            if (damageArea != null && distance < closestDamageDistance)
+            {
+                closestDamageArea = damageArea;
+                closestDamageDistance = distance;
+            }
+
+            LazerKnockback hazard = hit.GetComponentInParent<LazerKnockback>();
+            if (hazard == null)
+            {
+                continue;
+            }
+
+            if (distance >= closestDistance)
+            {
+                continue;
+            }
+
+            closestHazard = hazard;
+            closestDistance = distance;
+        }
+
+        closestDamageArea?.TryApplyDashDamage(playerManager);
+        return closestHazard != null && closestHazard.TryKnockback(playerManager, incomingDirection, true);
+    }
+
+    private void GetControllerCapsuleAt(Vector3 position, out Vector3 bottom, out Vector3 top, out float radius)
+    {
+        Vector3 center = position + transform.TransformVector(playerController.center);
+        radius = Mathf.Max(0.01f, playerController.radius);
+        float halfHeight = Mathf.Max(radius, playerController.height * 0.5f);
+        float verticalOffset = halfHeight - radius;
+
+        bottom = center - Vector3.up * verticalOffset;
+        top = center + Vector3.up * verticalOffset;
+    }
+
+    private bool IsOwnCollider(Collider hit)
+    {
+        return hit.transform == transform || hit.transform.IsChildOf(transform);
     }
 
     private void MovePlayer()

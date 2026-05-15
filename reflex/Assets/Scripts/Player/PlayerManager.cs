@@ -72,19 +72,25 @@ public class PlayerManager : MonoBehaviour
 
     // --- COMBAT LOGIC ---
 
-    public void TakeDamage(float amount)
+    public void TakeDamage(float amount, bool ignoreInvulnerability = false)
     {
-        if (isDead || !isVulnerable || isImmortal) return;
+        if (isDead || isImmortal) return;
+        if (!ignoreInvulnerability && !isVulnerable) return;
+
         currentHealth -= amount;
         EmotionEngine.Instance.RecordDamageTaken(amount);
         Debug.Log($"HP: {currentHealth}/{MaxHealth}");
-        isVulnerable = false; // Start invulnerability timer
+
         if (currentHealth <= 0)
         {
             currentHealth = 0;
             Die();
         }
-        else {Invoke(nameof(ResetVulnerability), stats.invulnerabilityDuration);}
+        else if (!ignoreInvulnerability)
+        {
+            isVulnerable = false; // Start invulnerability timer
+            Invoke(nameof(ResetVulnerability), stats.invulnerabilityDuration);
+        }
     }
 
     private void ResetVulnerability()
