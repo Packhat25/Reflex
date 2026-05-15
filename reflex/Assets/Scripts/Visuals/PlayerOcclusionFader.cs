@@ -7,9 +7,20 @@ public class PlayerOcclusionFader : MonoBehaviour
 {
     private const string SilhouetteResourceName = "Player Occlusion Silhouette";
     private const string SilhouetteShaderName = "Hidden/Reflex/PlayerOcclusionSilhouette";
+    private const string WallDitherMaterialResourceName = "Wall Cutout Reveal";
+    private const string WallCutoutShaderName = "Reflex/WallCutoutReveal";
     private const string SilhouetteObjectPrefix = "OcclusionSilhouette";
     private const int RaycastHitBufferSize = 64;
     private static readonly int ColorProperty = Shader.PropertyToID("_Color");
+    private static readonly int BaseMapProperty = Shader.PropertyToID("_BaseMap");
+    private static readonly int BaseColorProperty = Shader.PropertyToID("_BaseColor");
+    private static readonly int MainTexProperty = Shader.PropertyToID("_MainTex");
+    private static readonly int CutoutCenterSSProperty = Shader.PropertyToID("_CutoutCenterSS");
+    private static readonly int CutoutRadiusProperty = Shader.PropertyToID("_CutoutRadius");
+    private static readonly int CutoutVerticalScaleProperty = Shader.PropertyToID("_CutoutVerticalScale");
+    private static readonly int CutoutSoftnessProperty = Shader.PropertyToID("_CutoutSoftness");
+    private static readonly int CutoutActiveProperty = Shader.PropertyToID("_CutoutActive");
+    private static readonly int EdgeDitherSizeProperty = Shader.PropertyToID("_EdgeDitherSize");
 
     [Header("Line Of Sight")]
     [SerializeField] private Camera occlusionCamera;
@@ -46,6 +57,24 @@ public class PlayerOcclusionFader : MonoBehaviour
     [SerializeField, Min(0.1f)] private float silhouetteFadeSpeed = 7f;
     [SerializeField] private int silhouetteSortingOrderOffset = 250;
 
+    [Header("Enemy Silhouette")]
+    [SerializeField, Range(0f, 1f)] private float enemySilhouetteFillAlphaScale = 0.35f;
+    [SerializeField, Range(0f, 1f)] private float enemySilhouetteOutlineAlphaScale = 0.12f;
+    [SerializeField, Min(1f)] private float enemyOutlineScale = 1.03f;
+
+    [Header("Wall Cutout Reveal")]
+    [SerializeField] private bool ditherBlockingWalls = true;
+    [SerializeField] private Material wallDitherMaterialTemplate;
+    [SerializeField, Min(0f)] private float cutoutRadiusPaddingPixels = 42f;
+    [SerializeField, Min(1f)] private float minimumCutoutRadiusPixels = 88f;
+    [SerializeField, Min(1f)] private float maximumCutoutRadiusPixels = 240f;
+    [SerializeField, Min(0.1f)] private float cutoutVerticalScale = 1.35f;
+    [SerializeField, Min(1f)] private float cutoutSoftnessPixels = 26f;
+    [SerializeField, Min(1f)] private float cutoutEdgeDitherSize = 3f;
+    [SerializeField, Min(0.01f)] private float cutoutTransitionSmoothTime = 0.14f;
+    [SerializeField, Min(0f)] private float wallDitherHoldDuration = 0.18f;
+    [SerializeField, Range(1, 64)] private int maxDitheredWallGroupsPerScan = 32;
+
     [Header("Wall Filtering")]
     [SerializeField] private LayerMask occluderLayers = ~0;
     [SerializeField] private bool useDefaultLayerExclusions = true;
@@ -70,15 +99,27 @@ public class PlayerOcclusionFader : MonoBehaviour
     private readonly List<OccluderInfo> visibleBoundsOnlyOccluders = new List<OccluderInfo>();
     private readonly List<Collider> occluderColliderList = new List<Collider>();
     private readonly HashSet<Collider> occluderColliderLookup = new HashSet<Collider>();
+    private readonly Dictionary<Collider, OccluderInfo> occludersByCollider = new Dictionary<Collider, OccluderInfo>();
     private readonly List<Collider> colliderScratch = new List<Collider>();
+    private readonly Dictionary<Transform, WallDitherGroup> wallDitherGroupsByRoot = new Dictionary<Transform, WallDitherGroup>();
+    private readonly List<WallDitherGroup> wallDitherGroups = new List<WallDitherGroup>();
+    private readonly List<WallDitherGroup> pendingWallDitherGroups = new List<WallDitherGroup>();
+    private readonly HashSet<WallDitherGroup> pendingWallDitherGroupLookup = new HashSet<WallDitherGroup>();
+    private readonly HashSet<WallDitherGroup> wallGroupsMarkedThisScan = new HashSet<WallDitherGroup>();
+    private readonly Dictionary<Material, Material> wallDitherMaterialsBySource = new Dictionary<Material, Material>();
     private readonly Plane[] cameraFrustumPlanes = new Plane[6];
     private readonly Vector3[] targetPoints = new Vector3[5];
+    private readonly Vector3[] boundsCornerPoints = new Vector3[8];
     private readonly RaycastHit[] raycastHits = new RaycastHit[RaycastHitBufferSize];
 
     private Material runtimeSilhouetteMaterial;
+    private Shader runtimeWallDitherShader;
+    private Material fallbackWallDitherMaterial;
     private MaterialPropertyBlock fillPropertyBlock;
     private MaterialPropertyBlock outlinePropertyBlock;
     private bool ownsRuntimeSilhouetteMaterial;
+    private bool wallDitherShaderWarningShown;
+    private float playerCutoutRevealAmount;
     private float nextScanTime;
     private float nextTargetRefreshTime;
     private float nextOccluderRefreshTime;
@@ -87,6 +128,9 @@ public class PlayerOcclusionFader : MonoBehaviour
     private Color lastSilhouetteFillColor;
     private Color lastSilhouetteOutlineColor;
     private float lastOutlineScale;
+    private float lastEnemySilhouetteFillAlphaScale;
+    private float lastEnemySilhouetteOutlineAlphaScale;
+    private float lastEnemyOutlineScale;
     private int lastSilhouetteSortingOrderOffset;
     private bool hasLastVisualSettings;
     private int playerLayer = -1;
@@ -159,6 +203,7 @@ public class PlayerOcclusionFader : MonoBehaviour
             silhouetteTargets[i].HideImmediately();
         }
 
+        RestoreWallDitherGroupsImmediately();
         UpdateSilhouetteVisuals();
     }
 
@@ -171,6 +216,12 @@ public class PlayerOcclusionFader : MonoBehaviour
 
         silhouetteTargets.Clear();
         targetsByRoot.Clear();
+        RestoreWallDitherGroupsImmediately();
+        DestroyRuntimeWallDitherMaterials();
+        wallDitherGroups.Clear();
+        wallDitherGroupsByRoot.Clear();
+        pendingWallDitherGroups.Clear();
+        pendingWallDitherGroupLookup.Clear();
 
         if (ownsRuntimeSilhouetteMaterial && runtimeSilhouetteMaterial != null)
         {
@@ -197,6 +248,8 @@ public class PlayerOcclusionFader : MonoBehaviour
         {
             silhouetteTargets[i].Step(Time.deltaTime, silhouetteFadeSpeed);
         }
+
+        UpdateWallDitherGroups(Time.deltaTime);
     }
 
     private void LateUpdate()
@@ -222,6 +275,7 @@ public class PlayerOcclusionFader : MonoBehaviour
         GeometryUtility.CalculateFrustumPlanes(activeCamera, cameraFrustumPlanes);
         RefreshOccludersIfNeeded();
         RefreshVisibleBoundsOnlyOccluders();
+        wallGroupsMarkedThisScan.Clear();
 
         for (int i = 0; i < silhouetteTargets.Count; i++)
         {
@@ -390,6 +444,8 @@ public class PlayerOcclusionFader : MonoBehaviour
         visibleBoundsOnlyOccluders.Clear();
         occluderColliderList.Clear();
         occluderColliderLookup.Clear();
+        occludersByCollider.Clear();
+        BeginWallDitherCacheRefresh();
         effectiveOccluderLayerMask = BuildEffectiveOccluderLayerMask();
 
         Renderer[] renderers = FindObjectsByType<Renderer>(FindObjectsSortMode.None);
@@ -401,22 +457,24 @@ public class PlayerOcclusionFader : MonoBehaviour
                 continue;
             }
 
-            bool hasBlockingCollider = TryCacheBlockingColliders(renderer);
+            OccluderInfo occluder = new OccluderInfo(renderer, GetOrCreateWallDitherGroup(renderer));
+            bool hasBlockingCollider = TryCacheBlockingColliders(occluder);
             if (!hasBlockingCollider)
             {
-                boundsOnlyOccluders.Add(new OccluderInfo(renderer));
+                boundsOnlyOccluders.Add(occluder);
             }
         }
 
         colliderScratch.Clear();
+        FinishWallDitherCacheRefresh();
         occluderCacheValid = true;
     }
 
-    private bool TryCacheBlockingColliders(Renderer renderer)
+    private bool TryCacheBlockingColliders(OccluderInfo occluder)
     {
         bool hasBlockingCollider = false;
         colliderScratch.Clear();
-        renderer.GetComponents<Collider>(colliderScratch);
+        occluder.Renderer.GetComponents<Collider>(colliderScratch);
 
         for (int i = 0; i < colliderScratch.Count; i++)
         {
@@ -430,6 +488,7 @@ public class PlayerOcclusionFader : MonoBehaviour
 
             occluderColliderList.Add(occluderCollider);
             occluderColliderLookup.Add(occluderCollider);
+            occludersByCollider[occluderCollider] = occluder;
             hasBlockingCollider = true;
         }
 
@@ -485,19 +544,38 @@ public class PlayerOcclusionFader : MonoBehaviour
 
     private bool IsTargetBlockedByWall(OcclusionTarget target, Camera activeCamera)
     {
+        bool collectWallDitherGroups = ditherBlockingWalls && target.Root == transform;
+        if (collectWallDitherGroups)
+        {
+            BeginPendingWallDitherCollection();
+        }
+
         if (!target.HasRoot ||
             !target.TryGetBounds(out Bounds targetBounds) ||
             !GeometryUtility.TestPlanesAABB(cameraFrustumPlanes, targetBounds))
         {
+            if (collectWallDitherGroups)
+            {
+                DiscardPendingWallDitherGroups();
+            }
+
             return false;
         }
 
         BuildTargetPoints(targetBounds, activeCamera);
+        WallCutoutState cutoutState = default;
+        if (collectWallDitherGroups && !TryBuildWallCutoutState(targetBounds, activeCamera, out cutoutState))
+        {
+            DiscardPendingWallDitherGroups();
+            collectWallDitherGroups = false;
+        }
+
         Vector3 cameraPosition = activeCamera.transform.position;
         Transform targetRoot = target.Root;
         int blockedSampleCount = 0;
         int requiredSamples = Mathf.Clamp(requiredBlockedSamples, 1, targetPoints.Length);
         bool centerSampleBlocked = false;
+        bool targetBlocked = false;
 
         for (int i = 0; i < targetPoints.Length; i++)
         {
@@ -505,6 +583,11 @@ public class PlayerOcclusionFader : MonoBehaviour
             {
                 if (i == 0 && requireCenterSampleBlocked)
                 {
+                    if (collectWallDitherGroups)
+                    {
+                        DiscardPendingWallDitherGroups();
+                    }
+
                     return false;
                 }
 
@@ -512,34 +595,68 @@ public class PlayerOcclusionFader : MonoBehaviour
             }
 
             bool sampleBlocked =
-                ColliderOccluderBlocksRay(targetRoot, cameraRay, maxDistance) ||
-                BoundsOnlyOccluderBlocksRay(targetRoot, cameraRay, maxDistance);
+                ColliderOccluderBlocksRay(targetRoot, cameraRay, maxDistance, collectWallDitherGroups) ||
+                BoundsOnlyOccluderBlocksRay(targetRoot, cameraRay, maxDistance, collectWallDitherGroups);
 
             if (i == 0)
             {
                 centerSampleBlocked = sampleBlocked;
                 if (requireCenterSampleBlocked && !centerSampleBlocked)
                 {
+                    if (collectWallDitherGroups)
+                    {
+                        DiscardPendingWallDitherGroups();
+                    }
+
                     return false;
                 }
             }
 
             if (!sampleBlocked)
             {
-                int remainingSamples = targetPoints.Length - i - 1;
-                if (blockedSampleCount + remainingSamples < requiredSamples)
+                if (!targetBlocked)
                 {
-                    return false;
+                    int remainingSamples = targetPoints.Length - i - 1;
+                    if (blockedSampleCount + remainingSamples < requiredSamples)
+                    {
+                        if (collectWallDitherGroups)
+                        {
+                            DiscardPendingWallDitherGroups();
+                        }
+
+                        return false;
+                    }
                 }
 
                 continue;
             }
 
             blockedSampleCount++;
-            if ((!requireCenterSampleBlocked || centerSampleBlocked) && blockedSampleCount >= requiredSamples)
+            if (!targetBlocked &&
+                (!requireCenterSampleBlocked || centerSampleBlocked) &&
+                blockedSampleCount >= requiredSamples)
             {
-                return true;
+                targetBlocked = true;
+                if (!collectWallDitherGroups)
+                {
+                    return true;
+                }
             }
+        }
+
+        if (targetBlocked)
+        {
+            if (collectWallDitherGroups)
+            {
+                CommitPendingWallDitherGroups(cutoutState);
+            }
+
+            return true;
+        }
+
+        if (collectWallDitherGroups)
+        {
+            DiscardPendingWallDitherGroups();
         }
 
         return false;
@@ -595,7 +712,7 @@ public class PlayerOcclusionFader : MonoBehaviour
         return maxDistance > 0f;
     }
 
-    private bool ColliderOccluderBlocksRay(Transform targetRoot, Ray ray, float maxDistance)
+    private bool ColliderOccluderBlocksRay(Transform targetRoot, Ray ray, float maxDistance, bool collectWallDitherGroup)
     {
         if (occluderColliderList.Count == 0 || effectiveOccluderLayerMask == 0)
         {
@@ -609,48 +726,73 @@ public class PlayerOcclusionFader : MonoBehaviour
             effectiveOccluderLayerMask,
             QueryTriggerInteraction.Collide);
 
+        bool blocked = false;
         for (int i = 0; i < hitCount; i++)
         {
             Collider hitCollider = raycastHits[i].collider;
-            if (IsCachedOccluderCollider(hitCollider, targetRoot))
+            if (TryGetCachedOccluder(hitCollider, targetRoot, out OccluderInfo occluder))
             {
+                if (collectWallDitherGroup)
+                {
+                    CollectPendingWallDitherGroup(occluder);
+                    blocked = true;
+                    continue;
+                }
+
                 return true;
             }
         }
 
-        return hitCount >= raycastHits.Length && CachedCollidersBlockRay(targetRoot, ray, maxDistance);
+        if (blocked)
+        {
+            return true;
+        }
+
+        return hitCount >= raycastHits.Length &&
+               CachedCollidersBlockRay(targetRoot, ray, maxDistance, collectWallDitherGroup);
     }
 
-    private bool CachedCollidersBlockRay(Transform targetRoot, Ray ray, float maxDistance)
+    private bool CachedCollidersBlockRay(Transform targetRoot, Ray ray, float maxDistance, bool collectWallDitherGroup)
     {
+        bool blocked = false;
         for (int i = 0; i < occluderColliderList.Count; i++)
         {
             Collider occluderCollider = occluderColliderList[i];
-            if (!IsCachedOccluderCollider(occluderCollider, targetRoot))
+            if (!TryGetCachedOccluder(occluderCollider, targetRoot, out OccluderInfo occluder))
             {
                 continue;
             }
 
             if (occluderCollider.Raycast(ray, out RaycastHit hit, maxDistance))
             {
+                if (collectWallDitherGroup)
+                {
+                    CollectPendingWallDitherGroup(occluder);
+                    blocked = true;
+                    continue;
+                }
+
                 return true;
             }
         }
 
-        return false;
+        return blocked;
     }
 
-    private bool IsCachedOccluderCollider(Collider occluderCollider, Transform targetRoot)
+    private bool TryGetCachedOccluder(Collider occluderCollider, Transform targetRoot, out OccluderInfo occluder)
     {
+        occluder = null;
         return occluderCollider != null &&
                occluderCollider.enabled &&
                occluderCollider.gameObject.activeInHierarchy &&
                occluderColliderLookup.Contains(occluderCollider) &&
+               occludersByCollider.TryGetValue(occluderCollider, out occluder) &&
                (targetRoot == null || !occluderCollider.transform.IsChildOf(targetRoot));
     }
 
-    private bool BoundsOnlyOccluderBlocksRay(Transform targetRoot, Ray ray, float maxDistance)
+    private bool BoundsOnlyOccluderBlocksRay(Transform targetRoot, Ray ray, float maxDistance, bool collectWallDitherGroup)
     {
+        bool blocked = false;
         for (int i = 0; i < visibleBoundsOnlyOccluders.Count; i++)
         {
             OccluderInfo occluder = visibleBoundsOnlyOccluders[i];
@@ -661,11 +803,18 @@ public class PlayerOcclusionFader : MonoBehaviour
 
             if (occluder.PaddedBounds.IntersectRay(ray, out float hitDistance) && hitDistance < maxDistance)
             {
+                if (collectWallDitherGroup)
+                {
+                    CollectPendingWallDitherGroup(occluder);
+                    blocked = true;
+                    continue;
+                }
+
                 return true;
             }
         }
 
-        return false;
+        return blocked;
     }
 
     private bool IsDefaultExcludedLayer(int layer)
@@ -862,20 +1011,23 @@ public class PlayerOcclusionFader : MonoBehaviour
                 continue;
             }
 
+            float visualAmount = GetSilhouetteVisualAmount(target);
+            bool isPlayerTarget = target.Root == transform;
             bool wasVisualDirty = target.ConsumeVisualDirty();
-            bool updateMaterialProperties = forceVisualSettingsSync || wasVisualDirty;
+            bool updateMaterialProperties = forceVisualSettingsSync || wasVisualDirty || target.Root == transform;
             if (updateMaterialProperties)
             {
                 Color fillColor = silhouetteFillColor;
                 Color outlineColor = silhouetteOutlineColor;
-                fillColor.a *= target.Amount;
-                outlineColor.a *= target.Amount;
+                fillColor.a *= visualAmount * (isPlayerTarget ? 1f : enemySilhouetteFillAlphaScale);
+                outlineColor.a *= visualAmount * (isPlayerTarget ? 1f : enemySilhouetteOutlineAlphaScale);
                 fillPropertyBlock.SetColor(ColorProperty, fillColor);
                 outlinePropertyBlock.SetColor(ColorProperty, outlineColor);
             }
 
             target.SyncVisuals(
-                outlineScale,
+                visualAmount,
+                isPlayerTarget ? outlineScale : enemyOutlineScale,
                 silhouetteSortingOrderOffset,
                 fillPropertyBlock,
                 outlinePropertyBlock,
@@ -883,6 +1035,17 @@ public class PlayerOcclusionFader : MonoBehaviour
         }
 
         RememberSilhouetteVisualSettings();
+    }
+
+    private float GetSilhouetteVisualAmount(OcclusionTarget target)
+    {
+        if (target.Root != transform)
+        {
+            return target.Amount;
+        }
+
+        float suppressAmount = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.08f, 0.35f, playerCutoutRevealAmount));
+        return target.Amount * (1f - suppressAmount);
     }
 
     private bool HaveSilhouetteVisualSettingsChanged()
@@ -895,6 +1058,9 @@ public class PlayerOcclusionFader : MonoBehaviour
         return silhouetteFillColor != lastSilhouetteFillColor ||
                silhouetteOutlineColor != lastSilhouetteOutlineColor ||
                !Mathf.Approximately(outlineScale, lastOutlineScale) ||
+               !Mathf.Approximately(enemySilhouetteFillAlphaScale, lastEnemySilhouetteFillAlphaScale) ||
+               !Mathf.Approximately(enemySilhouetteOutlineAlphaScale, lastEnemySilhouetteOutlineAlphaScale) ||
+               !Mathf.Approximately(enemyOutlineScale, lastEnemyOutlineScale) ||
                silhouetteSortingOrderOffset != lastSilhouetteSortingOrderOffset;
     }
 
@@ -903,8 +1069,390 @@ public class PlayerOcclusionFader : MonoBehaviour
         lastSilhouetteFillColor = silhouetteFillColor;
         lastSilhouetteOutlineColor = silhouetteOutlineColor;
         lastOutlineScale = outlineScale;
+        lastEnemySilhouetteFillAlphaScale = enemySilhouetteFillAlphaScale;
+        lastEnemySilhouetteOutlineAlphaScale = enemySilhouetteOutlineAlphaScale;
+        lastEnemyOutlineScale = enemyOutlineScale;
         lastSilhouetteSortingOrderOffset = silhouetteSortingOrderOffset;
         hasLastVisualSettings = true;
+    }
+
+    private void BeginPendingWallDitherCollection()
+    {
+        pendingWallDitherGroups.Clear();
+        pendingWallDitherGroupLookup.Clear();
+    }
+
+    private void CollectPendingWallDitherGroup(OccluderInfo occluder)
+    {
+        if (occluder == null || occluder.DitherGroup == null)
+        {
+            return;
+        }
+
+        WallDitherGroup group = occluder.DitherGroup;
+        if (pendingWallDitherGroupLookup.Add(group))
+        {
+            pendingWallDitherGroups.Add(group);
+        }
+    }
+
+    private void CommitPendingWallDitherGroups(WallCutoutState cutoutState)
+    {
+        for (int i = 0; i < pendingWallDitherGroups.Count; i++)
+        {
+            MarkWallDitherGroup(pendingWallDitherGroups[i], cutoutState);
+        }
+
+        DiscardPendingWallDitherGroups();
+    }
+
+    private void DiscardPendingWallDitherGroups()
+    {
+        pendingWallDitherGroups.Clear();
+        pendingWallDitherGroupLookup.Clear();
+    }
+
+    private void MarkWallDitherGroup(WallDitherGroup group, WallCutoutState cutoutState)
+    {
+        if (group == null ||
+            !cutoutState.IsValid ||
+            !ditherBlockingWalls ||
+            wallGroupsMarkedThisScan.Count >= maxDitheredWallGroupsPerScan)
+        {
+            return;
+        }
+
+        if (!wallGroupsMarkedThisScan.Add(group))
+        {
+            return;
+        }
+
+        group.MarkBlocked(Time.time, wallDitherHoldDuration, cutoutState);
+    }
+
+    private void BeginWallDitherCacheRefresh()
+    {
+        for (int i = 0; i < wallDitherGroups.Count; i++)
+        {
+            wallDitherGroups[i].SeenThisRefresh = false;
+        }
+    }
+
+    private void FinishWallDitherCacheRefresh()
+    {
+        for (int i = wallDitherGroups.Count - 1; i >= 0; i--)
+        {
+            WallDitherGroup group = wallDitherGroups[i];
+            if (group.SeenThisRefresh || group.IsActive)
+            {
+                continue;
+            }
+
+            group.Restore();
+            wallDitherGroups.RemoveAt(i);
+            if (group.Root != null)
+            {
+                wallDitherGroupsByRoot.Remove(group.Root);
+            }
+        }
+    }
+
+    private WallDitherGroup GetOrCreateWallDitherGroup(Renderer renderer)
+    {
+        Transform root = ResolveWallDitherGroupRoot(renderer.transform);
+        if (!wallDitherGroupsByRoot.TryGetValue(root, out WallDitherGroup group))
+        {
+            group = new WallDitherGroup(root);
+            wallDitherGroupsByRoot.Add(root, group);
+            wallDitherGroups.Add(group);
+        }
+
+        group.SeenThisRefresh = true;
+        group.AddRenderer(renderer);
+        return group;
+    }
+
+    private Transform ResolveWallDitherGroupRoot(Transform candidate)
+    {
+        for (Transform current = candidate; current != null; current = current.parent)
+        {
+            if (NameMatchesAnyMarker(current.name, wallNameMarkers) ||
+                NameEqualsAnyMarker(current.name, wallSegmentNames))
+            {
+                return current;
+            }
+        }
+
+        return candidate;
+    }
+
+    private bool TryBuildCurrentPlayerWallCutoutState(out WallCutoutState cutoutState)
+    {
+        cutoutState = default;
+        Camera activeCamera = ResolveCamera();
+        if (activeCamera == null ||
+            !targetsByRoot.TryGetValue(transform, out OcclusionTarget target) ||
+            !target.TryGetBounds(out Bounds targetBounds))
+        {
+            return false;
+        }
+
+        return TryBuildWallCutoutState(targetBounds, activeCamera, out cutoutState);
+    }
+
+    private bool TryBuildWallCutoutState(Bounds targetBounds, Camera activeCamera, out WallCutoutState cutoutState)
+    {
+        cutoutState = default;
+        if (activeCamera == null)
+        {
+            return false;
+        }
+
+        Vector3 screenCenter = activeCamera.WorldToScreenPoint(targetBounds.center);
+        if (screenCenter.z <= 0f)
+        {
+            return false;
+        }
+
+        float minRadius = Mathf.Max(1f, minimumCutoutRadiusPixels);
+        float maxRadius = Mathf.Max(minRadius, maximumCutoutRadiusPixels);
+        float radius = minRadius;
+        if (TryGetBoundsScreenRect(targetBounds, activeCamera, out Rect targetScreenRect))
+        {
+            float targetRadius = Mathf.Max(targetScreenRect.width * 0.55f, targetScreenRect.height * 0.45f);
+            radius = Mathf.Clamp(targetRadius + cutoutRadiusPaddingPixels, minRadius, maxRadius);
+        }
+
+        cutoutState = new WallCutoutState(
+            new Vector2(screenCenter.x, screenCenter.y),
+            radius,
+            Mathf.Max(0.1f, cutoutVerticalScale),
+            Mathf.Max(1f, cutoutSoftnessPixels),
+            Mathf.Max(1f, cutoutEdgeDitherSize));
+        return true;
+    }
+
+    private bool TryGetBoundsScreenRect(Bounds bounds, Camera activeCamera, out Rect screenRect)
+    {
+        screenRect = default;
+        if (activeCamera == null)
+        {
+            return false;
+        }
+
+        FillBoundsCorners(bounds);
+        bool hasScreenPoint = false;
+        float minX = float.PositiveInfinity;
+        float minY = float.PositiveInfinity;
+        float maxX = float.NegativeInfinity;
+        float maxY = float.NegativeInfinity;
+
+        for (int i = 0; i < boundsCornerPoints.Length; i++)
+        {
+            Vector3 screenPoint = activeCamera.WorldToScreenPoint(boundsCornerPoints[i]);
+            if (screenPoint.z <= 0f)
+            {
+                continue;
+            }
+
+            hasScreenPoint = true;
+            minX = Mathf.Min(minX, screenPoint.x);
+            minY = Mathf.Min(minY, screenPoint.y);
+            maxX = Mathf.Max(maxX, screenPoint.x);
+            maxY = Mathf.Max(maxY, screenPoint.y);
+        }
+
+        if (!hasScreenPoint)
+        {
+            return false;
+        }
+
+        screenRect = Rect.MinMaxRect(minX, minY, maxX, maxY);
+        return true;
+    }
+
+    private void FillBoundsCorners(Bounds bounds)
+    {
+        Vector3 min = bounds.min;
+        Vector3 max = bounds.max;
+        boundsCornerPoints[0] = new Vector3(min.x, min.y, min.z);
+        boundsCornerPoints[1] = new Vector3(max.x, min.y, min.z);
+        boundsCornerPoints[2] = new Vector3(min.x, max.y, min.z);
+        boundsCornerPoints[3] = new Vector3(max.x, max.y, min.z);
+        boundsCornerPoints[4] = new Vector3(min.x, min.y, max.z);
+        boundsCornerPoints[5] = new Vector3(max.x, min.y, max.z);
+        boundsCornerPoints[6] = new Vector3(min.x, max.y, max.z);
+        boundsCornerPoints[7] = new Vector3(max.x, max.y, max.z);
+    }
+
+    private void UpdateWallDitherGroups(float deltaTime)
+    {
+        if (wallDitherGroups.Count == 0)
+        {
+            playerCutoutRevealAmount = 0f;
+            return;
+        }
+
+        float smoothTime = Mathf.Max(0.01f, cutoutTransitionSmoothTime);
+        bool hasCurrentCutoutState = TryBuildCurrentPlayerWallCutoutState(out WallCutoutState currentCutoutState);
+        float highestCutoutAmount = 0f;
+
+        for (int i = wallDitherGroups.Count - 1; i >= 0; i--)
+        {
+            WallDitherGroup group = wallDitherGroups[i];
+            group.Step(this, deltaTime, smoothTime, currentCutoutState, hasCurrentCutoutState);
+            highestCutoutAmount = Mathf.Max(highestCutoutAmount, group.Amount);
+        }
+
+        playerCutoutRevealAmount = highestCutoutAmount;
+    }
+
+    private void RestoreWallDitherGroupsImmediately()
+    {
+        for (int i = 0; i < wallDitherGroups.Count; i++)
+        {
+            wallDitherGroups[i].Restore();
+        }
+
+        wallGroupsMarkedThisScan.Clear();
+        playerCutoutRevealAmount = 0f;
+    }
+
+    private void DestroyRuntimeWallDitherMaterials()
+    {
+        foreach (Material material in wallDitherMaterialsBySource.Values)
+        {
+            if (material == null)
+            {
+                continue;
+            }
+
+            if (Application.isPlaying)
+            {
+                Destroy(material);
+            }
+            else
+            {
+                DestroyImmediate(material);
+            }
+        }
+
+        wallDitherMaterialsBySource.Clear();
+
+        if (fallbackWallDitherMaterial != null)
+        {
+            if (Application.isPlaying)
+            {
+                Destroy(fallbackWallDitherMaterial);
+            }
+            else
+            {
+                DestroyImmediate(fallbackWallDitherMaterial);
+            }
+
+            fallbackWallDitherMaterial = null;
+        }
+    }
+
+    private Material GetOrCreateWallDitherMaterial(Material sourceMaterial)
+    {
+        if (sourceMaterial == null)
+        {
+            if (fallbackWallDitherMaterial != null)
+            {
+                return fallbackWallDitherMaterial;
+            }
+        }
+        else if (wallDitherMaterialsBySource.TryGetValue(sourceMaterial, out Material cachedMaterial))
+        {
+            return cachedMaterial;
+        }
+
+        Shader ditherShader = ResolveWallDitherShader();
+        if (ditherShader == null)
+        {
+            return sourceMaterial;
+        }
+
+        Material ditherMaterial = wallDitherMaterialTemplate != null
+            ? new Material(wallDitherMaterialTemplate)
+            : new Material(ditherShader);
+
+        ditherMaterial.name = sourceMaterial != null
+            ? $"{sourceMaterial.name} Cutout Reveal"
+            : "Wall Cutout Reveal Runtime";
+        ditherMaterial.hideFlags = HideFlags.DontSave;
+        CopyWallMaterialProperties(sourceMaterial, ditherMaterial);
+        if (sourceMaterial == null)
+        {
+            fallbackWallDitherMaterial = ditherMaterial;
+        }
+        else
+        {
+            wallDitherMaterialsBySource.Add(sourceMaterial, ditherMaterial);
+        }
+
+        return ditherMaterial;
+    }
+
+    private Shader ResolveWallDitherShader()
+    {
+        if (runtimeWallDitherShader != null)
+        {
+            return runtimeWallDitherShader;
+        }
+
+        if (wallDitherMaterialTemplate == null)
+        {
+            wallDitherMaterialTemplate = Resources.Load<Material>(WallDitherMaterialResourceName);
+        }
+
+        if (wallDitherMaterialTemplate != null && wallDitherMaterialTemplate.shader != null)
+        {
+            runtimeWallDitherShader = wallDitherMaterialTemplate.shader;
+            return runtimeWallDitherShader;
+        }
+
+        runtimeWallDitherShader = Shader.Find(WallCutoutShaderName);
+        if (runtimeWallDitherShader == null && !wallDitherShaderWarningShown)
+        {
+            Debug.LogWarning($"{nameof(PlayerOcclusionFader)} could not find '{WallCutoutShaderName}'. Wall cutout reveal is disabled.");
+            wallDitherShaderWarningShown = true;
+        }
+
+        return runtimeWallDitherShader;
+    }
+
+    private static void CopyWallMaterialProperties(Material sourceMaterial, Material ditherMaterial)
+    {
+        if (sourceMaterial == null || ditherMaterial == null)
+        {
+            return;
+        }
+
+        if (sourceMaterial.HasProperty(BaseMapProperty))
+        {
+            Texture texture = sourceMaterial.GetTexture(BaseMapProperty);
+            ditherMaterial.SetTexture(BaseMapProperty, texture);
+            ditherMaterial.SetTextureScale(BaseMapProperty, sourceMaterial.GetTextureScale(BaseMapProperty));
+            ditherMaterial.SetTextureOffset(BaseMapProperty, sourceMaterial.GetTextureOffset(BaseMapProperty));
+        }
+        else if (sourceMaterial.HasProperty(MainTexProperty))
+        {
+            Texture texture = sourceMaterial.GetTexture(MainTexProperty);
+            ditherMaterial.SetTexture(BaseMapProperty, texture);
+            ditherMaterial.SetTextureScale(BaseMapProperty, sourceMaterial.GetTextureScale(MainTexProperty));
+            ditherMaterial.SetTextureOffset(BaseMapProperty, sourceMaterial.GetTextureOffset(MainTexProperty));
+        }
+
+        if (sourceMaterial.HasProperty(BaseColorProperty))
+        {
+            ditherMaterial.SetColor(BaseColorProperty, sourceMaterial.GetColor(BaseColorProperty));
+        }
+        else if (sourceMaterial.HasProperty(ColorProperty))
+        {
+            ditherMaterial.SetColor(BaseColorProperty, sourceMaterial.GetColor(ColorProperty));
+        }
     }
 
     private void OnDrawGizmosSelected()
@@ -930,12 +1478,40 @@ public class PlayerOcclusionFader : MonoBehaviour
         }
     }
 
+    private readonly struct WallCutoutState
+    {
+        public readonly Vector2 CenterScreenPosition;
+        public readonly float RadiusPixels;
+        public readonly float VerticalScale;
+        public readonly float SoftnessPixels;
+        public readonly float EdgeDitherSize;
+
+        public bool IsValid => RadiusPixels > 0f;
+
+        public WallCutoutState(
+            Vector2 centerScreenPosition,
+            float radiusPixels,
+            float verticalScale,
+            float softnessPixels,
+            float edgeDitherSize)
+        {
+            CenterScreenPosition = centerScreenPosition;
+            RadiusPixels = radiusPixels;
+            VerticalScale = verticalScale;
+            SoftnessPixels = softnessPixels;
+            EdgeDitherSize = edgeDitherSize;
+        }
+    }
+
     private sealed class OccluderInfo
     {
         private readonly Renderer renderer;
         private readonly Transform transform;
+        private readonly WallDitherGroup ditherGroup;
 
+        public Renderer Renderer => renderer;
         public Transform Transform => transform;
+        public WallDitherGroup DitherGroup => ditherGroup;
         public Bounds PaddedBounds { get; private set; }
 
         public bool IsUsable =>
@@ -943,10 +1519,11 @@ public class PlayerOcclusionFader : MonoBehaviour
             renderer.enabled &&
             renderer.gameObject.activeInHierarchy;
 
-        public OccluderInfo(Renderer renderer)
+        public OccluderInfo(Renderer renderer, WallDitherGroup ditherGroup)
         {
             this.renderer = renderer;
             transform = renderer.transform;
+            this.ditherGroup = ditherGroup;
         }
 
         public void RefreshPaddedBounds(float padding)
@@ -954,6 +1531,271 @@ public class PlayerOcclusionFader : MonoBehaviour
             Bounds paddedBounds = renderer.bounds;
             paddedBounds.Expand(padding * 2f);
             PaddedBounds = paddedBounds;
+        }
+    }
+
+    private sealed class WallDitherGroup
+    {
+        private readonly Transform root;
+        private readonly List<WallDitherRendererState> renderers = new List<WallDitherRendererState>();
+        private readonly HashSet<Renderer> knownRenderers = new HashSet<Renderer>();
+        private float amount;
+        private float amountVelocity;
+        private float holdUntilTime;
+        private WallCutoutState cutoutState;
+        private Bounds cachedBounds;
+        private bool boundsDirty = true;
+        private bool hasBounds;
+
+        public Transform Root => root;
+        public float Amount => amount;
+        public bool SeenThisRefresh { get; set; }
+        public bool IsActive => amount > 0.001f || Time.time <= holdUntilTime;
+
+        public WallDitherGroup(Transform root)
+        {
+            this.root = root;
+        }
+
+        public void AddRenderer(Renderer renderer)
+        {
+            if (renderer == null || knownRenderers.Contains(renderer))
+            {
+                return;
+            }
+
+            knownRenderers.Add(renderer);
+            renderers.Add(new WallDitherRendererState(renderer));
+            boundsDirty = true;
+        }
+
+        public void MarkBlocked(float currentTime, float holdDuration, WallCutoutState newCutoutState)
+        {
+            holdUntilTime = Mathf.Max(holdUntilTime, currentTime + Mathf.Max(0f, holdDuration));
+            if (newCutoutState.IsValid)
+            {
+                cutoutState = newCutoutState;
+            }
+        }
+
+        public void Step(
+            PlayerOcclusionFader owner,
+            float deltaTime,
+            float smoothTime,
+            WallCutoutState currentCutoutState,
+            bool useCurrentCutoutState)
+        {
+            RemoveMissingRenderers();
+
+            if (renderers.Count == 0)
+            {
+                amount = 0f;
+                return;
+            }
+
+            float targetAmount = Time.time <= holdUntilTime ? 1f : 0f;
+            float previousAmount = amount;
+            amount = Mathf.SmoothDamp(
+                amount,
+                targetAmount,
+                ref amountVelocity,
+                smoothTime,
+                Mathf.Infinity,
+                deltaTime);
+
+            if (targetAmount <= 0f && amount < 0.001f)
+            {
+                amount = 0f;
+                amountVelocity = 0f;
+            }
+            else if (targetAmount >= 1f && amount > 0.999f)
+            {
+                amount = 1f;
+                amountVelocity = 0f;
+            }
+
+            if (amount <= 0.001f && previousAmount <= 0.001f)
+            {
+                return;
+            }
+
+            WallCutoutState stateToApply = useCurrentCutoutState && currentCutoutState.IsValid
+                ? currentCutoutState
+                : cutoutState;
+
+            if (!stateToApply.IsValid)
+            {
+                return;
+            }
+
+            for (int i = 0; i < renderers.Count; i++)
+            {
+                renderers[i].Apply(owner, amount, stateToApply);
+            }
+        }
+
+        public bool TryGetBounds(out Bounds bounds)
+        {
+            if (boundsDirty)
+            {
+                RefreshBounds();
+            }
+
+            bounds = cachedBounds;
+            return hasBounds;
+        }
+
+        public void Restore()
+        {
+            amount = 0f;
+            amountVelocity = 0f;
+            holdUntilTime = 0f;
+            cutoutState = default;
+
+            for (int i = 0; i < renderers.Count; i++)
+            {
+                renderers[i].Restore();
+            }
+        }
+
+        private void RefreshBounds()
+        {
+            hasBounds = false;
+            cachedBounds = default;
+
+            for (int i = 0; i < renderers.Count; i++)
+            {
+                Renderer renderer = renderers[i].Renderer;
+                if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy)
+                {
+                    continue;
+                }
+
+                if (!hasBounds)
+                {
+                    cachedBounds = renderer.bounds;
+                    hasBounds = true;
+                }
+                else
+                {
+                    cachedBounds.Encapsulate(renderer.bounds);
+                }
+            }
+
+            boundsDirty = false;
+        }
+
+        private void RemoveMissingRenderers()
+        {
+            for (int i = renderers.Count - 1; i >= 0; i--)
+            {
+                WallDitherRendererState state = renderers[i];
+                if (state.HasRenderer)
+                {
+                    continue;
+                }
+
+                knownRenderers.Remove(state.Renderer);
+                renderers.RemoveAt(i);
+                boundsDirty = true;
+            }
+        }
+    }
+
+    private sealed class WallDitherRendererState
+    {
+        private readonly Renderer renderer;
+        private readonly Material[] originalMaterials;
+        private readonly MaterialPropertyBlock propertyBlock = new MaterialPropertyBlock();
+        private Material[] ditherMaterials;
+        private bool usingDitherMaterials;
+
+        public Renderer Renderer => renderer;
+        public bool HasRenderer => renderer != null;
+
+        public WallDitherRendererState(Renderer renderer)
+        {
+            this.renderer = renderer;
+            originalMaterials = renderer.sharedMaterials;
+        }
+
+        public void Apply(
+            PlayerOcclusionFader owner,
+            float amount,
+            WallCutoutState cutoutState)
+        {
+            if (renderer == null)
+            {
+                return;
+            }
+
+            if (amount <= 0.001f)
+            {
+                Restore();
+                return;
+            }
+
+            EnsureDitherMaterials(owner);
+            if (ditherMaterials == null || ditherMaterials.Length == 0)
+            {
+                return;
+            }
+
+            if (!usingDitherMaterials)
+            {
+                renderer.sharedMaterials = ditherMaterials;
+                usingDitherMaterials = true;
+            }
+
+            renderer.GetPropertyBlock(propertyBlock);
+            propertyBlock.SetVector(
+                CutoutCenterSSProperty,
+                new Vector4(cutoutState.CenterScreenPosition.x, cutoutState.CenterScreenPosition.y, 0f, 0f));
+            propertyBlock.SetFloat(CutoutRadiusProperty, cutoutState.RadiusPixels);
+            propertyBlock.SetFloat(CutoutVerticalScaleProperty, cutoutState.VerticalScale);
+            propertyBlock.SetFloat(CutoutSoftnessProperty, cutoutState.SoftnessPixels);
+            propertyBlock.SetFloat(CutoutActiveProperty, amount);
+            propertyBlock.SetFloat(EdgeDitherSizeProperty, cutoutState.EdgeDitherSize);
+            renderer.SetPropertyBlock(propertyBlock);
+        }
+
+        public void Restore()
+        {
+            if (renderer == null)
+            {
+                return;
+            }
+
+            if (usingDitherMaterials)
+            {
+                renderer.sharedMaterials = originalMaterials;
+                usingDitherMaterials = false;
+            }
+
+            renderer.GetPropertyBlock(propertyBlock);
+            propertyBlock.SetFloat(CutoutActiveProperty, 0f);
+            renderer.SetPropertyBlock(propertyBlock);
+        }
+
+        private void EnsureDitherMaterials(PlayerOcclusionFader owner)
+        {
+            if (ditherMaterials != null)
+            {
+                return;
+            }
+
+            int materialCount = originalMaterials != null ? originalMaterials.Length : 0;
+            if (materialCount == 0)
+            {
+                ditherMaterials = new Material[] { owner.GetOrCreateWallDitherMaterial(null) };
+                return;
+            }
+
+            ditherMaterials = new Material[materialCount];
+            for (int i = 0; i < materialCount; i++)
+            {
+                ditherMaterials[i] = owner.GetOrCreateWallDitherMaterial(originalMaterials[i]);
+            }
         }
     }
 
@@ -1087,6 +1929,7 @@ public class PlayerOcclusionFader : MonoBehaviour
         }
 
         public void SyncVisuals(
+            float visualAmount,
             float outlineScale,
             int sortingOrderOffset,
             MaterialPropertyBlock fillPropertyBlock,
@@ -1096,7 +1939,7 @@ public class PlayerOcclusionFader : MonoBehaviour
             for (int i = 0; i < parts.Count; i++)
             {
                 parts[i].Sync(
-                    Amount,
+                    visualAmount,
                     outlineScale,
                     sortingOrderOffset,
                     fillPropertyBlock,
