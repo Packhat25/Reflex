@@ -134,13 +134,14 @@ GameObject:
   m_Component:
   - component: {fileID: 1499716830720860322}
   - component: {fileID: 516448537985835338}
+  - component: {fileID: 9028216469844371152}
   m_Layer: 0
   m_Name: Hit Box
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &1499716830720860322
 Transform:
   m_ObjectHideFlags: 0
@@ -150,8 +151,8 @@ Transform:
   m_GameObject: {fileID: 772759956315112491}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.34236908, y: -1.35, z: 0.23190975}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 1.41}
+  m_LocalScale: {x: 1.5, y: 3, z: 3}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 4911970107442623936}
@@ -169,6 +170,27 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHitbox
   enemyController: {fileID: -7622507968253989827}
+--- !u!65 &9028216469844371152
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 772759956315112491}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 1, z: 1}
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &2026264460492293523
 GameObject:
   m_ObjectHideFlags: 0
@@ -724,7 +746,7 @@ Transform:
   m_GameObject: {fileID: 7718681091217661635}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 66.42, y: 4, z: 15.97}
+  m_LocalPosition: {x: -1.4394436, y: 1, z: -52.85191}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -790,8 +812,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::EnemyController
   enemyStateDislpay: 
   animator: {fileID: 2987281263678921744}
-  visionRange: 8
-  visionAngle: 90
+  visionRange: 10
+  visionAngle: 150
   chaseLeashRange: 15
   lastKnownPlayerPosition: {x: 0, y: 0, z: 0}
   detectionLayers:
