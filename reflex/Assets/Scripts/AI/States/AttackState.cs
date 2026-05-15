@@ -1,0 +1,58 @@
+using UnityEngine;
+
+public class AttackState : IEnemyState
+{
+    private EnemyController _enemy;
+    private float _attackTimer;
+    private bool _hasFinishedAttacking;
+
+    public AttackState(EnemyController enemy)
+    {
+        _enemy = enemy;
+    }
+
+    public void OnEnter()
+    {
+        _enemy.agent.isStopped = true;
+
+        _attackTimer = _enemy.GetDirectorAttackOpeningDelay();
+    }
+
+    public void Tick()
+    {
+        if (_enemy.player == null)
+        {
+            _enemy.ChangeState(new SearchState(_enemy));
+            return;
+        }
+
+        // 1. Keep looking at player while standing still
+        Vector3 dirToPlayer = (_enemy.player.position - _enemy.transform.position).normalized;
+        dirToPlayer.y = 0;
+        if (dirToPlayer.sqrMagnitude > 0.01f)
+        {
+            _enemy.transform.rotation = Quaternion.LookRotation(dirToPlayer);
+        }
+
+        // 2. Handle the swing timer
+        _attackTimer -= Time.deltaTime;
+        if (_attackTimer <= 0)
+        {
+            // Trigger the actual Hitbox code we wrote in EnemyController!
+            _enemy.AttackPlayer();
+            _attackTimer = _enemy.attackCooldown; // Reset timer for the next bite
+        }
+
+        // 3. Only go back to Chase if the player runs away
+        float distance = Vector3.Distance(_enemy.transform.position, _enemy.player.position);
+        if (distance > _enemy.attackRange)
+        {
+            _enemy.ChangeState(new ChaseState(_enemy));
+        }
+    }
+
+    public void OnExit()
+    {
+        _enemy.agent.isStopped = false;
+    }
+}

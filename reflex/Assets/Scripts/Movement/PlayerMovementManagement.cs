@@ -8,17 +8,23 @@ public class PlayerMovementManagement : MonoBehaviour
     [SerializeField] private DefaultMovementStats movementVariables;
     [SerializeField] private CharacterController playerController;
     [SerializeField] private new CinemachinePositionComposer camera;
-    [SerializeField] private PlayerManager playerManager; 
+    [SerializeField] private PlayerManager playerManager;
+    [SerializeField] private WeaponManager weaponManager;
 
     [Header("Movement Settings")]
     [SerializeField] private float rotationSpeed = 10f;
+    [SerializeField] private LayerMask dashCollisionMask = ~0; // Ensure this excludes the Player layer
+    [SerializeField] private float dashCollisionBuffer = 0.05f;
+    
+    [Header("VFX")]
+    public TrailRenderer dashTrail;
 
     public Vector2 moveInput { get; private set; }
     private Vector3 currentVelocity;
     private float verticalVelocity;
     private bool isSprinting;
     private bool isOnGround;
-    private bool isDashing = false;
+    public bool isDashing = false;
     private float lastDashTime;
     private PlayerInput userInput;
     private InputAction moveAction;
@@ -27,8 +33,12 @@ public class PlayerMovementManagement : MonoBehaviour
 
     void Start()
     {
-    
+
         userInput = GetComponent<PlayerInput>();
+        if (weaponManager == null)
+        {
+            weaponManager = GetComponent<WeaponManager>();
+        }
 
         // Initialize and Enable Actions
         moveAction = userInput.actions.FindAction("Move");
@@ -38,17 +48,22 @@ public class PlayerMovementManagement : MonoBehaviour
         moveAction.Enable();
         dashAction.Enable();
         sprintAction?.Enable();
+        dashTrail.emitting = false;
     }
 
     void Update()
     {
         if (isDashing) return;
-        if (playerManager.isAttacking) 
-    {
-        currentVelocity = Vector3.zero;
-        return;
-    }
+
         ReadInputs();
+        if (isDashing) return;
+
+        if (playerManager.isAttacking)
+        {
+            currentVelocity = Vector3.zero;
+            return;
+        }
+
         MovePlayer();
         FOVChangeWhenRunning();
     }
@@ -57,39 +72,130 @@ public class PlayerMovementManagement : MonoBehaviour
     {
         moveInput = moveAction.ReadValue<Vector2>();
 
-        if (dashAction.triggered)
+        if (dashAction.triggered && CanDash())
         {
+            if (playerManager.isAttacking && weaponManager != null)
+            {
+                weaponManager.CancelAttackForDash();
+            }
+
             StartCoroutine(PerformDash());
         }
 
-        isSprinting = sprintAction.IsPressed();
     }
     private bool CanDash()
     {
-        return !isDashing && Time.time >= lastDashTime + movementVariables.dashCooldown;
+        // Subtract the reduction bonus from the base cooldown
+        float actualCD = Mathf.Max(0.2f, movementVariables.dashCooldown - playerManager.cardDashCDReduction);
+        return !isDashing && Time.time >= lastDashTime + actualCD;
     }
     private IEnumerator PerformDash()
     {
+        weaponManager.HitboxOff();
         isDashing = true;
         lastDashTime = Time.time;
+        int originalLayer = gameObject.layer;
+        gameObject.layer = LayerMask.NameToLayer("DashingPlayer");
 
-        // 1. Determine Dash Direction
-        // If player is moving, dash in that direction. If stationary, dash forward.
+        if (dashTrail != null) dashTrail.emitting = true;
+
         Vector3 dashDir = CameraDirectionLogic.GetRelativeDirection(moveInput, Camera.main);
         if (dashDir.magnitude < 0.1f) dashDir = transform.forward;
 
-        // 2. Apply Dash Velocity
+        float totalDashSpeed = movementVariables.dashSpeed + playerManager.cardDashDistanceBonus;
+        float dashDuration = movementVariables.dashDuration;
+        float totalDashDistance = totalDashSpeed * dashDuration;
+
+        // PHASE LOGIC: Check if the end position is clear.
+        // If it is clear, we phase through everything in between.
+        // If it's blocked, the obstacle is "thicker" than our dash, so we collide normally.
+        bool canPhase = !IsDestinationBlocked(dashDir, totalDashDistance);
+
         float startTime = Time.time;
-        while (Time.time < startTime + movementVariables.dashDuration)
+        while (Time.time < startTime + dashDuration)
         {
-            // We bypass the acceleration logic for a constant high-speed burst
-            playerController.Move(dashDir * movementVariables.dashSpeed * Time.deltaTime);
+            Vector3 dashStep = dashDir * totalDashSpeed * Time.deltaTime;
+            
+            if (canPhase)
+            {
+                // Rely on the Physics Matrix (DashingPlayer vs Obstacles) to glide through.
+                playerController.Move(dashStep);
+            }
+            else
+            {
+                // Manual collision check to stop in front of thick obstacles.
+                CollisionFlags collisionFlags = MoveDashStep(dashStep);
+                if ((collisionFlags & CollisionFlags.Sides) != 0) break;
+            }
+
             yield return null;
         }
 
+        if (dashTrail != null) dashTrail.emitting = false;
+        gameObject.layer = originalLayer;
         isDashing = false;
-        // Optional: Reset currentVelocity so you don't "slide" after the dash ends
         currentVelocity = dashDir * GetCurrentSpeed();
+    }
+
+    private bool IsDestinationBlocked(Vector3 direction, float distance)
+    {
+        Vector3 targetPos = transform.position + direction * distance;
+        Vector3 center = targetPos + playerController.center;
+
+        float radius = playerController.radius;
+        float halfHeight = playerController.height * 0.5f;
+        float offset = Mathf.Max(0, halfHeight - radius);
+        
+        // Offset the bottom slightly to avoid hitting the floor.
+        float verticalBuffer = playerController.stepOffset;
+        Vector3 top = center + Vector3.up * offset;
+        Vector3 bottom = center - Vector3.up * (offset - verticalBuffer);
+        
+        Collider[] hits = Physics.OverlapCapsule(bottom, top, radius * 0.9f, dashCollisionMask, QueryTriggerInteraction.Ignore);
+        
+        foreach (var hit in hits)
+        {
+            if (hit.transform != transform && !hit.transform.IsChildOf(transform)) return true;
+        }
+        return false;
+    }
+
+    private CollisionFlags MoveDashStep(Vector3 movement)
+    {
+        if (movement.sqrMagnitude <= Mathf.Epsilon) return CollisionFlags.None;
+        Vector3 direction = movement.normalized;
+        float distance = movement.magnitude;
+
+        if (TryGetDashBlockedDistance(direction, distance, out float blockedDistance))
+        {
+            float safeDistance = Mathf.Max(0f, blockedDistance - dashCollisionBuffer);
+            if (safeDistance > 0f) playerController.Move(direction * safeDistance);
+            return CollisionFlags.Sides;
+        }
+        return playerController.Move(movement);
+    }
+
+    private bool TryGetDashBlockedDistance(Vector3 direction, float distance, out float blockedDistance)
+    {
+        blockedDistance = 0f;
+        Vector3 center = transform.TransformPoint(playerController.center);
+        float radius = Mathf.Max(0.01f, playerController.radius);
+        float halfHeight = Mathf.Max(radius, playerController.height * 0.5f);
+        Vector3 bottom = center - Vector3.up * (halfHeight - radius);
+        Vector3 top = center + Vector3.up * (halfHeight - radius);
+
+        RaycastHit[] hits = Physics.CapsuleCastAll(bottom, top, radius, direction, distance + dashCollisionBuffer, dashCollisionMask, QueryTriggerInteraction.Ignore);
+        float closest = Mathf.Infinity;
+
+        foreach (var hit in hits)
+        {
+            if (hit.collider.transform == transform || hit.collider.transform.IsChildOf(transform)) continue;
+            if (hit.distance < closest) closest = hit.distance;
+        }
+
+        if (float.IsInfinity(closest)) return false;
+        blockedDistance = closest;
+        return true;
     }
 
     private void MovePlayer()
@@ -121,6 +227,10 @@ public class PlayerMovementManagement : MonoBehaviour
         // 5. Final Move
         Vector3 finalVelocity = currentVelocity + (Vector3.up * verticalVelocity);
         playerController.Move(finalVelocity * Time.deltaTime);
+
+        bool isMoving = moveDirection.magnitude > 0.1f;
+        bool isIdle = !isMoving && !playerManager.isAttacking && !isDashing;
+        EmotionEngine.Instance.RecordMovement(currentVelocity.magnitude, isMoving, isIdle);
     }
 
     private void RotateTowards(Vector3 direction)

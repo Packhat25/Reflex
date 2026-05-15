@@ -1,0 +1,56 @@
+using UnityEngine;
+
+
+public class HurtState : IEnemyState
+{
+    private EnemyController _enemy;
+    private float _stunTimer;
+    private float _activeStunDuration; // How long the enemy flinches
+
+    public HurtState(EnemyController enemy, float duration)
+    {
+        _enemy = enemy;
+        _activeStunDuration = duration;
+    }
+
+    public void OnEnter()
+    {
+        _stunTimer = _activeStunDuration;
+        
+        // Stop movement while hurt
+        if (_enemy.agent != null && _enemy.agent.isActiveAndEnabled && _enemy.agent.isOnNavMesh)
+        {
+            _enemy.agent.isStopped = true;
+        }
+        
+        // Visual feedback (flinch color flash)
+        if (_enemy.spriteRenderer != null)
+        {
+            _enemy.spriteRenderer.color = new Color(1f, 0.5f, 0.5f); 
+        }
+        
+        if (_enemy.animator != null)
+        {
+            _enemy.animator.Play("Hurt Front");
+        }
+    }
+
+    public void Tick()
+    {
+        _stunTimer -= Time.deltaTime;
+        if (_stunTimer <= 0)
+        { 
+            // After flinching, get mad and chase the player!
+            _enemy.ChangeState(new ChaseState(_enemy));
+        }
+    }
+
+    public void OnExit()
+    {
+        if (_enemy.agent != null && _enemy.agent.isActiveAndEnabled && _enemy.agent.isOnNavMesh)
+        {
+            _enemy.agent.isStopped = false;
+        }
+
+    }
+}

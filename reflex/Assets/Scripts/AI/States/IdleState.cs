@@ -16,8 +16,12 @@ public class IdleState : IEnemyState
     public void OnEnter()
     {
         _idleTimer = _waitDuration;
-        _enemy.spriteRenderer.color = Color.white;
-        Debug.Log("Enemy is resting...");
+
+        if (_enemy.spriteRenderer != null)
+        {
+            _enemy.spriteRenderer.color = Color.white;
+        }
+        
     }
 
     public void Tick()
@@ -41,6 +45,6 @@ public class IdleState : IEnemyState
 
     public void OnExit()
     {
-        Debug.Log("Enemy leaving IDLE state.");
+        
     }
 }

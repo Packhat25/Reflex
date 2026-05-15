@@ -25,15 +25,6 @@
                     "initialStateCheck": false
                 },
                 {
-                    "name": "Sprint",
-                    "type": "Button",
-                    "id": "11de5a53-497a-4f96-8955-c2ae145dfe84",
-                    "expectedControlType": "",
-                    "processors": "",
-                    "interactions": "",
-                    "initialStateCheck": false
-                },
-                {
                     "name": "Attack",
                     "type": "Button",
                     "id": "6c695c41-5c47-49c3-b6e7-be196d640df6",
@@ -143,17 +134,6 @@
                 },
                 {
                     "name": "",
-                    "id": "0a3b350d-c19c-4750-ab72-548287638ff7",
-                    "path": "<Keyboard>/leftShift",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "",
-                    "action": "Sprint",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "",
                     "id": "c32ff9b1-b1be-4ee1-8251-2a68b720a821",
                     "path": "<Mouse>/leftButton",
                     "interactions": "",
@@ -166,7 +146,7 @@
                 {
                     "name": "",
                     "id": "a1ec5fda-3a62-4aa5-a63f-30b7224f4a06",
-                    "path": "<Keyboard>/#(E)",
+                    "path": "<Keyboard>/e",
                     "interactions": "",
                     "processors": "",
                     "groups": "",

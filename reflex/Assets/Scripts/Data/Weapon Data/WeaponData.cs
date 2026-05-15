@@ -3,12 +3,13 @@ using UnityEngine;
 [System.Serializable]
 public struct AttackStep
 {
-    
     public float attackRange;
     public float attackWidth;
     public float verticalScale;
     public float attackDamage;
     public float attackStunDuration;
+    public float dashInDistance; // New field for dash-in distance
+    public float dashInVelocity; // New field for dash-in velocity
 }
 
 [CreateAssetMenu(fileName = "NewWeaponData", menuName = "Combat/Weapon Data")]

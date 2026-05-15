@@ -111,15 +111,6 @@ public partial class @PlayerMovement: IInputActionCollection2, IDisposable
                     ""initialStateCheck"": false
                 },
                 {
-                    ""name"": ""Sprint"",
-                    ""type"": ""Button"",
-                    ""id"": ""11de5a53-497a-4f96-8955-c2ae145dfe84"",
-                    ""expectedControlType"": """",
-                    ""processors"": """",
-                    ""interactions"": """",
-                    ""initialStateCheck"": false
-                },
-                {
                     ""name"": ""Attack"",
                     ""type"": ""Button"",
                     ""id"": ""6c695c41-5c47-49c3-b6e7-be196d640df6"",
@@ -229,17 +220,6 @@ public partial class @PlayerMovement: IInputActionCollection2, IDisposable
                 },
                 {
                     ""name"": """",
-                    ""id"": ""0a3b350d-c19c-4750-ab72-548287638ff7"",
-                    ""path"": ""<Keyboard>/leftShift"",
-                    ""interactions"": """",
-                    ""processors"": """",
-                    ""groups"": """",
-                    ""action"": ""Sprint"",
-                    ""isComposite"": false,
-                    ""isPartOfComposite"": false
-                },
-                {
-                    ""name"": """",
                     ""id"": ""c32ff9b1-b1be-4ee1-8251-2a68b720a821"",
                     ""path"": ""<Mouse>/leftButton"",
                     ""interactions"": """",
@@ -252,7 +232,7 @@ public partial class @PlayerMovement: IInputActionCollection2, IDisposable
                 {
                     ""name"": """",
                     ""id"": ""a1ec5fda-3a62-4aa5-a63f-30b7224f4a06"",
-                    ""path"": ""<Keyboard>/#(E)"",
+                    ""path"": ""<Keyboard>/e"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": """",
@@ -269,7 +249,6 @@ public partial class @PlayerMovement: IInputActionCollection2, IDisposable
         m_PlayerMovementAction = asset.FindActionMap("PlayerMovementAction", throwIfNotFound: true);
         m_PlayerMovementAction_Move = m_PlayerMovementAction.FindAction("Move", throwIfNotFound: true);
         m_PlayerMovementAction_Dash = m_PlayerMovementAction.FindAction("Dash", throwIfNotFound: true);
-        m_PlayerMovementAction_Sprint = m_PlayerMovementAction.FindAction("Sprint", throwIfNotFound: true);
         m_PlayerMovementAction_Attack = m_PlayerMovementAction.FindAction("Attack", throwIfNotFound: true);
         m_PlayerMovementAction_Interact = m_PlayerMovementAction.FindAction("Interact", throwIfNotFound: true);
     }
@@ -354,7 +333,6 @@ public partial class @PlayerMovement: IInputActionCollection2, IDisposable
     private List<IPlayerMovementActionActions> m_PlayerMovementActionActionsCallbackInterfaces = new List<IPlayerMovementActionActions>();
     private readonly InputAction m_PlayerMovementAction_Move;
     private readonly InputAction m_PlayerMovementAction_Dash;
-    private readonly InputAction m_PlayerMovementAction_Sprint;
     private readonly InputAction m_PlayerMovementAction_Attack;
     private readonly InputAction m_PlayerMovementAction_Interact;
     /// <summary>
@@ -376,10 +354,6 @@ public partial class @PlayerMovement: IInputActionCollection2, IDisposable
         /// Provides access to the underlying input action "PlayerMovementAction/Dash".
         /// </summary>
         public InputAction @Dash => m_Wrapper.m_PlayerMovementAction_Dash;
-        /// <summary>
-        /// Provides access to the underlying input action "PlayerMovementAction/Sprint".
-        /// </summary>
-        public InputAction @Sprint => m_Wrapper.m_PlayerMovementAction_Sprint;
         /// <summary>
         /// Provides access to the underlying input action "PlayerMovementAction/Attack".
         /// </summary>
@@ -420,9 +394,6 @@ public partial class @PlayerMovement: IInputActionCollection2, IDisposable
             @Dash.started += instance.OnDash;
             @Dash.performed += instance.OnDash;
             @Dash.canceled += instance.OnDash;
-            @Sprint.started += instance.OnSprint;
-            @Sprint.performed += instance.OnSprint;
-            @Sprint.canceled += instance.OnSprint;
             @Attack.started += instance.OnAttack;
             @Attack.performed += instance.OnAttack;
             @Attack.canceled += instance.OnAttack;
@@ -446,9 +417,6 @@ public partial class @PlayerMovement: IInputActionCollection2, IDisposable
             @Dash.started -= instance.OnDash;
             @Dash.performed -= instance.OnDash;
             @Dash.canceled -= instance.OnDash;
-            @Sprint.started -= instance.OnSprint;
-            @Sprint.performed -= instance.OnSprint;
-            @Sprint.canceled -= instance.OnSprint;
             @Attack.started -= instance.OnAttack;
             @Attack.performed -= instance.OnAttack;
             @Attack.canceled -= instance.OnAttack;
@@ -509,13 +477,6 @@ public partial class @PlayerMovement: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnDash(InputAction.CallbackContext context);
-        /// <summary>
-        /// Method invoked when associated input action "Sprint" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
-        /// </summary>
-        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
-        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
-        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
-        void OnSprint(InputAction.CallbackContext context);
         /// <summary>
         /// Method invoked when associated input action "Attack" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
         /// </summary>
