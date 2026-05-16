@@ -4473,6 +4473,10 @@ PrefabInstance:
       propertyPath: weaponData
       value: 
       objectReference: {fileID: 11400000, guid: d0abc0b86a659514a80faf42f6f17388, type: 2}
+    - target: {fileID: 5510873766451475314, guid: 009c2f1cdfb86994580f84de399ba8cb, type: 3}
+      propertyPath: isVulnerable
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 8294327607503731119, guid: 009c2f1cdfb86994580f84de399ba8cb, type: 3}
       propertyPath: cameraObj
       value: 
