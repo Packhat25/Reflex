@@ -299,7 +299,7 @@ public class PlayerMovementManagement : MonoBehaviour
         RaycastHit[] hits = Physics.CapsuleCastAll(bottom, top, radius, incomingDirection.normalized, castDistance, dashHazardMask, QueryTriggerInteraction.Collide);
         LazerKnockback closestHazard = null;
         DmgArea closestDamageArea = null;
-        LazerStateController closestStateController = null;
+        TrapStateController closestStateController = null;
         float closestDistance = Mathf.Infinity;
         float closestDamageDistance = Mathf.Infinity;
         float closestStateDistance = Mathf.Infinity;
@@ -318,8 +318,8 @@ public class PlayerMovementManagement : MonoBehaviour
                 closestDamageDistance = hit.distance;
             }
 
-            LazerStateController stateController = hit.collider.GetComponentInParent<LazerStateController>();
-            if (stateController == null && hit.collider.TryGetComponent(out LazerPassThroughTrigger passThroughTrigger))
+            TrapStateController stateController = hit.collider.GetComponentInParent<TrapStateController>();
+            if (stateController == null && hit.collider.TryGetComponent(out TrapPassThroughTrigger passThroughTrigger))
             {
                 stateController = passThroughTrigger.Controller;
             }
@@ -356,7 +356,7 @@ public class PlayerMovementManagement : MonoBehaviour
         int hitCount = Physics.OverlapCapsuleNonAlloc(bottom, top, radius, dashHazardResults, dashHazardMask, QueryTriggerInteraction.Collide);
         LazerKnockback closestHazard = null;
         DmgArea closestDamageArea = null;
-        LazerStateController closestStateController = null;
+        TrapStateController closestStateController = null;
         float closestDistance = Mathf.Infinity;
         float closestDamageDistance = Mathf.Infinity;
         float closestStateDistance = Mathf.Infinity;
@@ -381,8 +381,8 @@ public class PlayerMovementManagement : MonoBehaviour
                 closestDamageDistance = distance;
             }
 
-            LazerStateController stateController = hit.GetComponentInParent<LazerStateController>();
-            if (stateController == null && hit.TryGetComponent(out LazerPassThroughTrigger passThroughTrigger))
+            TrapStateController stateController = hit.GetComponentInParent<TrapStateController>();
+            if (stateController == null && hit.TryGetComponent(out TrapPassThroughTrigger passThroughTrigger))
             {
                 stateController = passThroughTrigger.Controller;
             }

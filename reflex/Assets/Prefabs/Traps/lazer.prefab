@@ -380,7 +380,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b7f2d34e4fdf49d29fa0119f65db3dd4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LazerStateController
+  m_EditorClassIdentifier: Assembly-CSharp::TrapStateController
   activeOnStart: 1
   hideRenderersWhenOff: 1
   rendererToggleMode: 2
@@ -390,6 +390,12 @@ MonoBehaviour:
   damageAreas: []
   knockbackAreas: []
   renderersToToggle: []
+  enemySpawners: []
+  controlEnemySpawners: 1
+  enableSpawnersWhenActive: 1
+  disableSpawnersWhenInactive: 1
+  setSpawnerGameObjectsActive: 1
+  autoFindEnemySpawnersWhenEmpty: 1
   turnOffWhen: 0
   turnOffDelay: 3
   turnOnWhen: 0

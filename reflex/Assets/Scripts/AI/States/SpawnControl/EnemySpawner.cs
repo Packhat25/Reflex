@@ -14,6 +14,7 @@ public class EnemySpawner : MonoBehaviour
     private float _timer;
     private bool _waveClearReported;
     private bool _waitingForRoomToClear;
+    private bool _hasSpawnedWave;
 
     void Start()
     {
@@ -65,6 +66,7 @@ public class EnemySpawner : MonoBehaviour
 
     private void SpawnWave()
     {
+        _hasSpawnedWave = true;
         _currentEnemies.Clear();
         _waveClearReported = false;
         _waitingForRoomToClear = false;
@@ -92,7 +94,7 @@ public class EnemySpawner : MonoBehaviour
 
     private void OnDisable()
     {
-        if (!_waveClearReported && EmotionEngine.HasInstance)
+        if (_hasSpawnedWave && !_waveClearReported && EmotionEngine.HasInstance)
         {
             EmotionEngine.Instance.RecordRoomCleared(this);
             _waveClearReported = true;

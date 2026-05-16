@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class LazerStateController : MonoBehaviour
+public class TrapStateController : MonoBehaviour
 {
-    public enum LazerCondition
+    public enum TrapCondition
     {
         ManualOnly,
         AfterSeconds,
@@ -41,13 +41,21 @@ public class LazerStateController : MonoBehaviour
     public DmgArea[] damageAreas;
     public LazerKnockback[] knockbackAreas;
     public Renderer[] renderersToToggle;
+    public EnemySpawner[] enemySpawners;
+
+    [Header("Enemy Spawners")]
+    public bool controlEnemySpawners = true;
+    public bool enableSpawnersWhenActive = true;
+    public bool disableSpawnersWhenInactive = true;
+    public bool setSpawnerGameObjectsActive = true;
+    public bool autoFindEnemySpawnersWhenEmpty = true;
 
     [Header("Turn Off")]
-    public LazerCondition turnOffWhen = LazerCondition.ManualOnly;
+    public TrapCondition turnOffWhen = TrapCondition.ManualOnly;
     public float turnOffDelay = 3f;
 
     [Header("Turn On")]
-    public LazerCondition turnOnWhen = LazerCondition.ManualOnly;
+    public TrapCondition turnOnWhen = TrapCondition.ManualOnly;
     public float turnOnDelay = 3f;
 
     [Header("Enemy Condition")]
@@ -65,7 +73,7 @@ public class LazerStateController : MonoBehaviour
     public bool autoAddPassThroughTriggerComponents = true;
     public bool forcePassThroughCollidersToTrigger = true;
 
-    public bool IsLazerActive { get; private set; }
+    public bool IsTrapActive { get; private set; }
 
     private EnemyController[] sceneEnemies;
     private bool hasFoundSceneEnemies;
@@ -79,40 +87,40 @@ public class LazerStateController : MonoBehaviour
     private void Awake()
     {
         AutoFillReferences();
-        SetLazerActive(activeOnStart);
+        SetTrapActive(activeOnStart);
         ResetConditionTriggers();
     }
 
     private void Update()
     {
-        if (IsLazerActive)
+        if (IsTrapActive)
         {
             if (!turnOffConditionUsed && IsConditionMet(turnOffWhen, turnOffDelay))
             {
                 turnOffConditionUsed = true;
-                SetLazerActive(false);
+                SetTrapActive(false);
             }
         }
         else if (!turnOnConditionUsed && IsConditionMet(turnOnWhen, turnOnDelay))
         {
             turnOnConditionUsed = true;
-            SetLazerActive(true);
+            SetTrapActive(true);
         }
     }
 
     public void TurnOn()
     {
-        SetLazerActive(true);
+        SetTrapActive(true);
     }
 
     public void TurnOff()
     {
-        SetLazerActive(false);
+        SetTrapActive(false);
     }
 
-    public void SetLazerActive(bool active)
+    public void SetTrapActive(bool active)
     {
-        IsLazerActive = active;
+        IsTrapActive = active;
         stateChangedTime = Time.time;
 
         AutoFillReferences();
@@ -143,6 +151,46 @@ public class LazerStateController : MonoBehaviour
                 }
             }
         }
+
+        if (controlEnemySpawners)
+        {
+            if (enemySpawners == null)
+            {
+                return;
+            }
+
+            foreach (EnemySpawner enemySpawner in enemySpawners)
+            {
+                if (enemySpawner == null)
+                {
+                    continue;
+                }
+
+                if (active && enableSpawnersWhenActive)
+                {
+                    if (setSpawnerGameObjectsActive)
+                    {
+                        enemySpawner.gameObject.SetActive(true);
+                    }
+
+                    enemySpawner.enabled = true;
+                }
+                else if (!active && disableSpawnersWhenInactive)
+                {
+                    enemySpawner.enabled = false;
+
+                    if (setSpawnerGameObjectsActive)
+                    {
+                        enemySpawner.gameObject.SetActive(false);
+                    }
+                }
+            }
+        }
+    }
+
+    public void SetLazerActive(bool active)
+    {
+        SetTrapActive(active);
     }
 
     public void ResetConditionTriggers()
@@ -196,15 +244,15 @@ public class LazerStateController : MonoBehaviour
         playerPassedThrough = true;
     }
 
-    private bool IsConditionMet(LazerCondition condition, float delay)
+    private bool IsConditionMet(TrapCondition condition, float delay)
     {
         switch (condition)
         {
-            case LazerCondition.AfterSeconds:
+            case TrapCondition.AfterSeconds:
                 return Time.time >= stateChangedTime + delay;
-            case LazerCondition.AfterAllWatchedEnemiesKilled:
+            case TrapCondition.AfterAllWatchedEnemiesKilled:
                 return AreAllWatchedEnemiesKilled();
-            case LazerCondition.PlayerPassesThrough:
+            case TrapCondition.PlayerPassesThrough:
                 if (!playerPassedThrough)
                 {
                     return false;
@@ -302,6 +350,11 @@ public class LazerStateController : MonoBehaviour
             knockbackAreas = GetComponentsInChildren<LazerKnockback>(includeInactive: true);
         }
 
+        if ((enemySpawners == null || enemySpawners.Length == 0) && autoFindEnemySpawnersWhenEmpty)
+        {
+            RefreshEnemySpawners();
+        }
+
         if (renderersToToggle == null || renderersToToggle.Length == 0)
         {
             RefreshRendererToggleList();
@@ -385,10 +438,10 @@ public class LazerStateController : MonoBehaviour
                 passThroughCollider.isTrigger = true;
             }
 
-            LazerPassThroughTrigger passThroughTrigger = passThroughCollider.GetComponent<LazerPassThroughTrigger>();
+            TrapPassThroughTrigger passThroughTrigger = passThroughCollider.GetComponent<TrapPassThroughTrigger>();
             if (passThroughTrigger == null && autoAddPassThroughTriggerComponents)
             {
-                passThroughTrigger = passThroughCollider.gameObject.AddComponent<LazerPassThroughTrigger>();
+                passThroughTrigger = passThroughCollider.gameObject.AddComponent<TrapPassThroughTrigger>();
             }
 
             if (passThroughTrigger != null)
@@ -396,6 +449,12 @@ public class LazerStateController : MonoBehaviour
                 passThroughTrigger.Configure(this);
             }
         }
+    }
+
+    [ContextMenu("Refresh Enemy Spawners")]
+    public void RefreshEnemySpawners()
+    {
+        enemySpawners = GetComponentsInChildren<EnemySpawner>(includeInactive: true);
     }
 
     private bool ShouldToggleRenderer(Renderer rendererToCheck)

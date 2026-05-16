@@ -79,30 +79,42 @@ Assets/
   Movement Data/DefaultMovementStats.cs
   Player Stats Data/PlayerStatsData.cs
   Weapon Data/WeaponData.cs
- Scripts/Interactables/
-  BuffCardUI.cs
-  IInteractable.cs
-  InteractionUI.cs
-  PlayerInteraction.cs
-  RewardManager.cs
- Scripts/Movement/
-  CameraDirectionLogic.cs
-  PlayerMovementManagement.cs
- Scripts/Player/
-  DmgArea.cs
-  LazerKnockback.cs
-  PlayerManager.cs
-  TrapHazardIndicator.cs
- Scripts/Visuals/
-  Billboarding.cs
-  PerspectiveChanger.cs
-  PlayerAnimation.cs
-  PlayerOcclusionFader.cs
+ Scripts/
+  Game/PauseManager.cs
+  Interactables/
+   BuffCardUI.cs
+   IInteractable.cs
+   InteractionUI.cs
+   PlayerInteraction.cs
+   RewardManager.cs
+  LevelGeneration/
+   LevelDoor.cs
+   LevelDoorAutoBinder.cs
+   LevelGenerationProfile.cs
+   LevelPlayerSpawnPoint.cs
+   LevelRoomDefinition.cs
+   LevelRunManager.cs
+  Movement/
+   CameraDirectionLogic.cs
+   PlayerMovementManagement.cs
+  Player/
+   DmgArea.cs
+   LazerKnockback.cs
+   PlayerManager.cs
+   TrapHazardIndicator.cs
+   TrapPassThroughTrigger.cs
+   TrapStateController.cs
+  Visuals/
+   Billboarding.cs
+   PerspectiveChanger.cs
+   PlayerAnimation.cs
+   PlayerOcclusionFader.cs
+   UI/InGameUIManager.cs
  TutorialInfo/Scripts/Readme.cs
 Temp/obj/Assembly-CSharp/.NETStandard,Version=v2.1.AssemblyAttributes.cs
 
 [metadataReferences]
-../../../Unity Editor/6000.3.8f1/Editor/Data/Managed/UnityEngine/
+../../../../AppData/Local/Unity/Editor/6000.3.8f1/Editor/Data/Managed/UnityEngine/
  UnityEditor.AccessibilityModule.dll
  UnityEditor.AdaptivePerformanceModule.dll
  UnityEditor.AssetComplianceModule.dll
@@ -237,7 +249,7 @@ Temp/obj/Assembly-CSharp/.NETStandard,Version=v2.1.AssemblyAttributes.cs
  UnityEngine.VRModule.dll
  UnityEngine.WindModule.dll
  UnityEngine.XRModule.dll
-../../../Unity Editor/6000.3.8f1/Editor/Data/NetStandard/compat/2.1.0/shims/netfx/
+../../../../AppData/Local/Unity/Editor/6000.3.8f1/Editor/Data/NetStandard/compat/2.1.0/shims/netfx/
  mscorlib.dll
  System.ComponentModel.Composition.dll
  System.Core.dll
@@ -255,7 +267,7 @@ Temp/obj/Assembly-CSharp/.NETStandard,Version=v2.1.AssemblyAttributes.cs
  System.Xml.dll
  System.Xml.Linq.dll
  System.Xml.Serialization.dll
-../../../Unity Editor/6000.3.8f1/Editor/Data/NetStandard/compat/2.1.0/shims/netstandard/
+../../../../AppData/Local/Unity/Editor/6000.3.8f1/Editor/Data/NetStandard/compat/2.1.0/shims/netstandard/
  Microsoft.Win32.Primitives.dll
  System.AppContext.dll
  System.Buffers.dll
@@ -359,7 +371,7 @@ Temp/obj/Assembly-CSharp/.NETStandard,Version=v2.1.AssemblyAttributes.cs
  System.Xml.XmlSerializer.dll
  System.Xml.XPath.dll
  System.Xml.XPath.XDocument.dll
-../../../Unity Editor/6000.3.8f1/Editor/Data/NetStandard/
+../../../../AppData/Local/Unity/Editor/6000.3.8f1/Editor/Data/NetStandard/
  Extensions/2.0.0/System.Runtime.InteropServices.WindowsRuntime.dll
  ref/2.1.0/netstandard.dll
 Library/PackageCache/com.unity.collections@aea9d3bd5e19/
@@ -454,11 +466,12 @@ Library/ScriptAssemblies/
  UnityEngine.UI.dll
 
 [analyzerReferences]
-../../../Unity Editor/6000.3.8f1/Editor/Data/Tools/BuildPipeline/Unity.SourceGenerators/
- Unity.Properties.SourceGenerator.dll
- Unity.SourceGenerators.dll
- Unity.UIToolkit.SourceGenerator.dll
-C:/Users/User/.vscode/extensions/visualstudiotoolsforunity.vstuc-1.2.2/Analyzers/Microsoft.Unity.Analyzers.dll
+../../../../
+ .vscode/extensions/visualstudiotoolsforunity.vstuc-1.2.2/Analyzers/Microsoft.Unity.Analyzers.dll
+ AppData/Local/Unity/Editor/6000.3.8f1/Editor/Data/Tools/BuildPipeline/Unity.SourceGenerators/
+  Unity.Properties.SourceGenerator.dll
+  Unity.SourceGenerators.dll
+  Unity.UIToolkit.SourceGenerator.dll
 
 [analyzerConfigFiles]
 Temp/obj/Assembly-CSharp/Assembly-CSharp.GeneratedMSBuildEditorConfig.editorconfig

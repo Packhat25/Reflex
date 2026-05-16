@@ -1,19 +1,19 @@
 using UnityEngine;
 
-public class LazerPassThroughTrigger : MonoBehaviour
+public class TrapPassThroughTrigger : MonoBehaviour
 {
-    public LazerStateController controller;
+    public TrapStateController controller;
 
-    public LazerStateController Controller => controller;
+    public TrapStateController Controller => controller;
 
-    public void Configure(LazerStateController targetController)
+    public void Configure(TrapStateController targetController)
     {
         controller = targetController;
     }
 
     private void Reset()
     {
-        controller = GetComponentInParent<LazerStateController>();
+        controller = GetComponentInParent<TrapStateController>();
 
         if (TryGetComponent(out Collider triggerCollider))
         {
@@ -25,7 +25,7 @@ public class LazerPassThroughTrigger : MonoBehaviour
     {
         if (controller == null)
         {
-            controller = GetComponentInParent<LazerStateController>();
+            controller = GetComponentInParent<TrapStateController>();
         }
     }
 
