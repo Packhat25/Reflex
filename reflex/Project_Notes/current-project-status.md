@@ -24,6 +24,7 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Calm relief charges now provide tactical pressure reduction in the next room after calm clears.
 - Composure room clears now award bonus Soul Essence with quality scaling.
 - Emotion hit scoring now mitigates stacked multi-hit aggression spikes via effective-hit diminishing returns.
+- Emotion aggression tempo now uses slower rise / faster fall with passive calm decay after short combat inactivity.
 
 ## Active Priorities
 - Playtest full path: Lobby -> L1 -> L2 -> L3 -> L4 -> L5 -> Boss -> Lobby.
@@ -40,6 +41,13 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
   - `multiHitBurstWindow`
   - `additionalHitFalloff`
   - `maxEffectiveHitsPerAttack`
+- Tune tempo fields:
+  - `aggressionRiseSmoothing`
+  - `aggressionFallSmoothing`
+  - `calmDecayDelay`
+  - `calmDecayPerSecond`
+  - `attackIntentScale`
+  - `hitIntentScale`
 
 ## Remaining Tasks
 - Create a dedicated `Level_5` scene to replace temporary scene reuse (`Room_2`) in the fixed run path.

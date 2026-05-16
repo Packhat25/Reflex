@@ -193,3 +193,35 @@ Added burst-aware hit scoring so one punch hitting a stacked pack no longer spik
 
 ### Known Limitations
 - Final values for `multiHitBurstWindow`, `additionalHitFalloff`, and `maxEffectiveHitsPerAttack` need in-editor playtest tuning.
+
+## 2026-05-17 - Aggression Tempo Tuning (Slower Build, Faster Cooldown)
+
+### Summary
+Adjusted emotion tempo so aggression climbs less abruptly from isolated attack events and decays faster when combat pressure cools down.
+
+### Files Affected
+- Assets/Scripts/AI/EmotionEngine.cs
+
+### Gameplay Changes
+- Added directional smoothing:
+  - `aggressionRiseSmoothing` for slower upward movement.
+  - `aggressionFallSmoothing` for faster downward movement.
+- Added passive calm decay after short inactivity:
+  - `calmDecayDelay`
+  - `calmDecayPerSecond`
+- Reduced attack/hit pressure sensitivity in weighted scoring:
+  - `attackIntentScale`
+  - `hitIntentScale`
+- Combat actions now refresh a shared combat-intent timestamp used by decay logic.
+
+### Design Notes
+- Keeps responsiveness while reducing one-attack overreaction.
+- Encourages emotion state to reflect sustained behavior, not single spikes.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Final values still need in-editor feel validation against different weapons and room densities.

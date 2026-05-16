@@ -108,8 +108,16 @@ public class EmotionEngine : MonoBehaviour
     [SerializeField, Range(0f, 1f)] private float aggressiveThreshold = 0.58f;
     [SerializeField, Range(0f, 1f)] private float calmThreshold = 0.42f;
     [SerializeField, Range(0f, 1f)] private float scoreSmoothing = 0.35f;
+    [SerializeField, Range(0f, 1f)] private float aggressionRiseSmoothing = 0.2f;
+    [SerializeField, Range(0f, 1f)] private float aggressionFallSmoothing = 0.55f;
     [SerializeField] private float evaluationInterval = 1f;
     [SerializeField] private bool logEmotionChanges = true;
+
+    [Header("Aggression Tempo")]
+    [SerializeField, Min(0f)] private float calmDecayDelay = 0.9f;
+    [SerializeField, Range(0f, 0.25f)] private float calmDecayPerSecond = 0.07f;
+    [SerializeField, Range(0.1f, 1f)] private float attackIntentScale = 0.75f;
+    [SerializeField, Range(0.1f, 1f)] private float hitIntentScale = 0.7f;
 
     [Header("Expected Values")]
     [SerializeField] private float expectedDamageTaken = 50f;
@@ -179,6 +187,8 @@ public class EmotionEngine : MonoBehaviour
     private float _combatIntentScore;
     private float _movementPressureScore;
     private float _timePressureScore;
+    private float _lastCombatIntentTime;
+    private float _lastEmotionEvaluationTime;
     private int _hitsInCurrentAttack;
     private float _effectiveHitsInCurrentAttack;
     private float _lastAttackStartedTime;
@@ -199,6 +209,8 @@ public class EmotionEngine : MonoBehaviour
         AggressionScore = startingEmotion == PlayerEmotionState.Aggressive ? aggressiveThreshold : calmThreshold;
         RecentAggressionScore = AggressionScore;
         _evaluationTimer = evaluationInterval;
+        _lastCombatIntentTime = Time.time;
+        _lastEmotionEvaluationTime = Time.time;
 
         if (createDebugHud)
         {
@@ -293,12 +305,14 @@ public class EmotionEngine : MonoBehaviour
         }
 
         _damageTaken += amount;
+        _lastCombatIntentTime = Time.time;
         EvaluateEmotion(false);
     }
 
     public void RecordDeath()
     {
         _deathCount++;
+        _lastCombatIntentTime = Time.time;
         EvaluateEmotion(true);
     }
 
@@ -318,6 +332,7 @@ public class EmotionEngine : MonoBehaviour
     public void RecordAttackStarted()
     {
         _attacksPerformed++;
+        _lastCombatIntentTime = Time.time;
         _lastAttackStartedTime = Time.time;
         _hitsInCurrentAttack = 0;
         _effectiveHitsInCurrentAttack = 0f;
@@ -332,6 +347,7 @@ public class EmotionEngine : MonoBehaviour
         }
 
         _enemyHits++;
+        _lastCombatIntentTime = Time.time;
         _effectiveEnemyHits += CalculateEffectiveHitContribution();
         _lastEnemyHitTime = Time.time;
         EvaluateEmotion(false);
@@ -399,6 +415,8 @@ public class EmotionEngine : MonoBehaviour
         _combatIntentScore = 0f;
         _movementPressureScore = 0f;
         _timePressureScore = 0f;
+        _lastCombatIntentTime = Time.time;
+        _lastEmotionEvaluationTime = Time.time;
         _hitsInCurrentAttack = 0;
         _effectiveHitsInCurrentAttack = 0f;
         _lastAttackStartedTime = 0f;
@@ -540,8 +558,24 @@ public class EmotionEngine : MonoBehaviour
 
     private void EvaluateEmotion(bool forceImmediate)
     {
+        float now = Time.time;
+        float elapsedSinceLastEvaluation = Mathf.Max(0f, now - _lastEmotionEvaluationTime);
+        _lastEmotionEvaluationTime = now;
+
         float targetScore = CalculateAggressionScore();
-        AggressionScore = forceImmediate ? targetScore : Mathf.Lerp(AggressionScore, targetScore, scoreSmoothing);
+        targetScore = ApplyPassiveCalmDecay(targetScore, elapsedSinceLastEvaluation, now);
+
+        if (forceImmediate)
+        {
+            AggressionScore = targetScore;
+        }
+        else
+        {
+            float directionalSmoothing = targetScore >= AggressionScore ? aggressionRiseSmoothing : aggressionFallSmoothing;
+            float smoothing = directionalSmoothing > 0f ? directionalSmoothing : scoreSmoothing;
+            AggressionScore = Mathf.Lerp(AggressionScore, targetScore, smoothing);
+        }
+
         EmotionProfileSnapshot snapshot = BuildSnapshot();
         EmotionProfileUpdated?.Invoke(snapshot);
 
@@ -635,8 +669,9 @@ public class EmotionEngine : MonoBehaviour
     {
         float damageScore = SafeRatio(damageTaken, expectedDamage);
         float encounterScore = SafeRatio(enemiesEncountered, expectedEncounters);
-        float attackScore = SafeRatio(attacksPerformed, expectedAttackCount);
-        float hitScore = attacksPerformed <= 0 ? 0f : Mathf.Clamp01(effectiveEnemyHits / attacksPerformed);
+        float attackScore = Mathf.Clamp01(SafeRatio(attacksPerformed, expectedAttackCount) * attackIntentScale);
+        float rawHitScore = attacksPerformed <= 0 ? 0f : Mathf.Clamp01(effectiveEnemyHits / attacksPerformed);
+        float hitScore = Mathf.Clamp01(rawHitScore * hitIntentScale);
         float movementScore = CalculateMovementScore(averageMovementSpeed, timeRunning, timeIdle, expectedMovementSpeed);
         float roomTimeScore = SafeRatio(roomTime, expectedClearTime);
         float deathScore = SafeRatio(deathCount, expectedDeathCount);
@@ -777,6 +812,22 @@ public class EmotionEngine : MonoBehaviour
         }
 
         return Mathf.Clamp01(value / expectedValue);
+    }
+
+    private float ApplyPassiveCalmDecay(float targetScore, float elapsedSinceLastEvaluation, float now)
+    {
+        if (calmDecayPerSecond <= 0f)
+        {
+            return targetScore;
+        }
+
+        if (now - _lastCombatIntentTime <= calmDecayDelay)
+        {
+            return targetScore;
+        }
+
+        float decayAmount = calmDecayPerSecond * elapsedSinceLastEvaluation;
+        return Mathf.Clamp01(targetScore - decayAmount);
     }
 
     private float CalculateEffectiveHitContribution()
