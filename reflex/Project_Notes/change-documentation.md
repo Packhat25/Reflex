@@ -1,3 +1,44 @@
+## 2026-05-17 - Room_2 Removal and Flow Repair
+
+### Summary
+Removed `Room_2` from the active level flow and fixed a broken default generation profile asset that had unresolved Git merge markers, which was causing fallback behavior and incorrect lobby returns.
+
+### Files Affected
+- Assets/Resources/LevelGeneration/Default Level Generation Profile.asset
+- Assets/Scripts/LevelGeneration/LevelRunManager.cs
+- ProjectSettings/EditorBuildSettings.asset
+
+### Scenes Affected
+- Assets/Scenes/Lobby.unity
+- Assets/Scenes/Level_1_Scene.unity
+- Assets/Scenes/Level_2_Scene.unity
+- Assets/Scenes/Level_3_Scene.unity
+- Assets/Scenes/Level_4_Scene.unity
+- Assets/Scenes/Final Boss Level.unity
+- Assets/Scenes/SampleScene.unity
+
+### Systems Affected
+- Level generation profile loading
+- Deterministic progression pathing
+- Build scene inclusion list
+
+### Gameplay Changes
+- Rebuilt `Default Level Generation Profile.asset` as valid Unity YAML (removed unresolved merge conflict markers).
+- Updated deterministic run path to remove `Room_2` while preserving the 6-step flow:
+  - Lobby -> Level 1 -> Level 2 -> Level 3 -> Level 4 -> Level 5 (`Level_4_Scene` reuse) -> Final Boss -> Lobby.
+- Removed `Room_2` from build scenes.
+- Corrected fallback room scene name typo in `LevelRunManager`:
+  - `Level_4_scene` -> `Level_4_Scene`.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing warning remains unrelated:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- A dedicated `Level_5` scene is still pending; `Level_4_Scene` is currently reused for floor 5.
+- Runtime playtesting in Unity Editor is still required to validate full traversal feel.
+
 ## 2026-05-16 - PatrolState NavMesh Guard Fix
 
 ### Summary
