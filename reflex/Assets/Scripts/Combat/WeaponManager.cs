@@ -11,6 +11,7 @@ public class WeaponManager : MonoBehaviour
     [SerializeField] private PlayerManager playerManager;
     [SerializeField] private PlayerMovementManagement playerMovement;
 
+    [SerializeField] private GameObject hitSparkPrefab; // spawned on successful hit, positioned at the hitbox's location with a slight random rotation for visual variety
     public GameObject hitboxVisual;
     public LayerMask enemyLayer;
 
@@ -198,6 +199,13 @@ public class WeaponManager : MonoBehaviour
             {
                 hurtbox.ReceiveDamage(finalDamage, attackStunDuration);
                 EmotionEngine.Instance.RecordEnemyHit(finalDamage);
+                // Spawn hit spark effect at the hitbox's position with a random rotation for visual variety
+                // despawn after 1.5 seconds
+                if (hitSparkPrefab != null)
+                {
+                    GameObject hitSpark = Instantiate(hitSparkPrefab, enemy.ClosestPoint(center), Quaternion.Euler(0, Random.Range(0, 360), 0));
+                    Destroy(hitSpark, 1.5f);
+                }
             }
 
             // VAMPIRIC FOCUS (Heal on Hit)
