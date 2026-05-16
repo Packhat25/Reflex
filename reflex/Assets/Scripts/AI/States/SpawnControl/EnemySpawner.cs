@@ -10,6 +10,14 @@ public class EnemySpawner : MonoBehaviour
     public float spawnHeight = 0f; // Height offset for spawning enemies
     public float respawnDelay = 3f; // How long to wait after the entire wave is gone
 
+    [Header("Emotion Spawn Scaling")]
+    public bool useEmotionSpawnCount = true;
+    public bool useEmotionSpawnRate = true;
+    [Min(0.01f)] public float calmRespawnDelayMultiplier = 1.25f;
+    [Min(0.01f)] public float aggressiveRespawnDelayMultiplier = 0.65f;
+    [Min(0f)] public float minimumRespawnDelay = 0.25f;
+    public bool logEmotionSpawnRate = true;
+
     private readonly List<GameObject> _currentEnemies = new List<GameObject>();
     private float _timer;
     private bool _waveClearReported;
@@ -42,7 +50,12 @@ public class EnemySpawner : MonoBehaviour
                 }
 
                 _waitingForRoomToClear = false;
-                _timer = respawnDelay;
+                _timer = GetEmotionAdjustedRespawnDelay();
+
+                if (logEmotionSpawnRate)
+                {
+                    Debug.Log($"<color=cyan>{name}: next wave in {_timer:0.00}s ({EmotionEngine.Instance.CurrentEmotion})</color>");
+                }
             }
 
             _timer -= Time.deltaTime;
@@ -71,7 +84,7 @@ public class EnemySpawner : MonoBehaviour
         _waveClearReported = false;
         _waitingForRoomToClear = false;
 
-        int adjustedSpawnCount = EmotionDirector.Instance.GetRecommendedSpawnCount(spawnCount);
+        int adjustedSpawnCount = GetEmotionAdjustedSpawnCount();
         EmotionEngine.Instance.BeginRoom(this, spawnCount, adjustedSpawnCount);
 
         for (int i = 0; i < adjustedSpawnCount; i++)
@@ -88,8 +101,32 @@ public class EnemySpawner : MonoBehaviour
             _currentEnemies.Add(enemy);
         }
 
-        _timer = respawnDelay;
+        _timer = GetEmotionAdjustedRespawnDelay();
         Debug.Log($"<color=green>SPAWNED WAVE OF {adjustedSpawnCount} ENEMIES ({EmotionDirector.Instance.CurrentDirective.strategy}); active spawners: {EmotionEngine.Instance.ActiveSpawnerCount}</color>");
+    }
+
+    private int GetEmotionAdjustedSpawnCount()
+    {
+        if (!useEmotionSpawnCount)
+        {
+            return spawnCount;
+        }
+
+        return EmotionDirector.Instance.GetRecommendedSpawnCount(spawnCount);
+    }
+
+    private float GetEmotionAdjustedRespawnDelay()
+    {
+        if (!useEmotionSpawnRate)
+        {
+            return Mathf.Max(minimumRespawnDelay, respawnDelay);
+        }
+
+        float multiplier = EmotionEngine.Instance.CurrentEmotion == PlayerEmotionState.Aggressive
+            ? aggressiveRespawnDelayMultiplier
+            : calmRespawnDelayMultiplier;
+
+        return Mathf.Max(minimumRespawnDelay, respawnDelay * multiplier);
     }
 
     private void OnDisable()
