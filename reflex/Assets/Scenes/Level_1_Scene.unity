@@ -296,7 +296,17 @@ MonoBehaviour:
   comboTime: 0
   weaponData: {fileID: 11400000, guid: d0abc0b86a659514a80faf42f6f17388, type: 2}
   playerInput: {fileID: 5221477}
+  pauseAction:
+    m_Name: Pause
+    m_Type: 0
+    m_ExpectedControlType: 
+    m_Id: fef005da-bb0e-4b56-ac27-7c305a956f16
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings: []
+    m_Flags: 0
   stats: {fileID: 11400000, guid: 99dc67199f639ba47a150587df7b0e19, type: 2}
+  soulEssence: 0
   permanentAtkBonus: 0
   permanentMaxHPBonus: 0
   permanentCritBonus: 0
@@ -18610,7 +18620,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2794070336112507877, guid: 7c568165dea999542b4dcb8a7407bb21, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6143834829870852885, guid: 7c568165dea999542b4dcb8a7407bb21, type: 3}
       propertyPath: m_LocalPosition.x
@@ -23048,7 +23058,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4921056880241442724, guid: 938bc88f97c29e44ea3559fc8892d46f, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 4964447266367886277, guid: 938bc88f97c29e44ea3559fc8892d46f, type: 3}
       propertyPath: m_LocalPosition.x
