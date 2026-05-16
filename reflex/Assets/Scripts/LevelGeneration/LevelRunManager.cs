@@ -218,6 +218,8 @@ public class LevelRunManager : MonoBehaviour
         {
             Debug.Log(BuildGraphLog());
         }
+
+        ResetPersistentPlayerRunState();
     }
 
     public void TravelTo(LevelDoorRoute route)
@@ -922,6 +924,14 @@ public class LevelRunManager : MonoBehaviour
     private bool SceneNameEquals(string left, string right)
     {
         return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void ResetPersistentPlayerRunState()
+    {
+        if (_persistentPlayer != null)
+        {
+            _persistentPlayer.ResetTemporaryRunState();
+        }
     }
 
     private void LoadDefaultProfileIfNeeded()

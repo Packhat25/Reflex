@@ -1,9 +1,12 @@
+using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections.Generic;
 
 public class PlayerManager : MonoBehaviour
 {
+    public event Action<int, int> SoulEssenceChanged;
+
     [Header("State Flags")]
     public bool isRunning = false;
     public bool isAttacking = false;
@@ -25,6 +28,7 @@ public class PlayerManager : MonoBehaviour
     public PlayerData stats; // Reference to your base ScriptableObject
 
     [Header("Permanent Upgrades (Essence)")]
+    public int soulEssence = 0;
     public float permanentAtkBonus = 0f;    // e.g., 0.1 for +10%
     public float permanentMaxHPBonus = 0f;
     public float permanentCritBonus = 0f;
@@ -124,6 +128,35 @@ public class PlayerManager : MonoBehaviour
     public void Heal(float amount)
     {
         currentHealth = Mathf.Min(currentHealth + amount, MaxHealth);
+    }
+
+    public void AddSoulEssence(int amount)
+    {
+        int safeAmount = Mathf.Max(0, amount);
+        if (safeAmount <= 0)
+        {
+            return;
+        }
+
+        soulEssence += safeAmount;
+        SoulEssenceChanged?.Invoke(soulEssence, safeAmount);
+    }
+
+    public void ResetTemporaryRunState()
+    {
+        cardAtkBonus = 0f;
+        cardCritChance = 0f;
+        cardEssenceMult = 0f;
+        cardVampChance = 0f;
+        cardComboWindowBonus = 0f;
+        cardDashCDReduction = 0f;
+        cardDashDistanceBonus = 0f;
+        glassCannonHPModifier = 1f;
+
+        if (stats != null)
+        {
+            currentHealth = MaxHealth;
+        }
     }
 
     private void Die()
