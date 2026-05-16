@@ -193,10 +193,10 @@ public class LevelRunManager : MonoBehaviour
         _currentNodeId = 0;
         _pendingNodeId = -1;
         _deepestDepthReached = 0;
-        int configuredSeed = FixedSeed;
-        _activeSeed = configuredSeed != 0 ? configuredSeed : unchecked((int)DateTime.UtcNow.Ticks);
+        _activeSeed = CreateRunSeed();
 
         System.Random random = new System.Random(_activeSeed);
+        Dictionary<string, int> roomUseCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
         GeneratedLevelNode lobbyNode = CreateNode(0, 0, LobbySceneName);
         _nodesById.Add(lobbyNode.id, lobbyNode);
@@ -205,9 +205,10 @@ public class LevelRunManager : MonoBehaviour
         string previousScene = LobbySceneName;
         for (int depth = 1; depth <= GeneratedRoomCount; depth++)
         {
-            string sceneName = PickRoomScene(random, previousScene, depth);
+            string sceneName = PickRoomScene(random, previousScene, depth, roomUseCounts);
             GeneratedLevelNode node = CreateNode(depth, depth, sceneName);
             _nodesById.Add(node.id, node);
+            IncrementRoomUseCount(roomUseCounts, sceneName);
             previousScene = sceneName;
         }
 
@@ -778,9 +779,26 @@ public class LevelRunManager : MonoBehaviour
         return false;
     }
 
-    private string PickRoomScene(System.Random random, string previousScene, int depth)
+    private int CreateRunSeed()
     {
-        if (TryPickProfileRoomScene(random, previousScene, depth, out string profileSceneName))
+        int configuredSeed = FixedSeed;
+        if (configuredSeed != 0)
+        {
+            return configuredSeed;
+        }
+
+        unchecked
+        {
+            int seed = Guid.NewGuid().GetHashCode();
+            seed = (seed * 397) ^ Environment.TickCount;
+            seed = (seed * 397) ^ DateTime.UtcNow.Ticks.GetHashCode();
+            return seed != 0 ? seed : 1;
+        }
+    }
+
+    private string PickRoomScene(System.Random random, string previousScene, int depth, Dictionary<string, int> roomUseCounts)
+    {
+        if (TryPickProfileRoomScene(random, previousScene, depth, roomUseCounts, out string profileSceneName))
         {
             return profileSceneName;
         }
@@ -805,19 +823,31 @@ public class LevelRunManager : MonoBehaviour
             return validRooms[0];
         }
 
+        List<string> repeatSafeRooms = new List<string>();
+        for (int i = 0; i < validRooms.Count; i++)
+        {
+            if (!SceneNameEquals(validRooms[i], previousScene))
+            {
+                repeatSafeRooms.Add(validRooms[i]);
+            }
+        }
+
+        List<string> pickPool = repeatSafeRooms.Count > 0 ? repeatSafeRooms : validRooms;
+        pickPool = KeepLeastUsedRoomNames(pickPool, roomUseCounts);
+
         for (int attempt = 0; attempt < 8; attempt++)
         {
-            string candidate = validRooms[random.Next(validRooms.Count)];
+            string candidate = pickPool[random.Next(pickPool.Count)];
             if (!SceneNameEquals(candidate, previousScene))
             {
                 return candidate;
             }
         }
 
-        return validRooms[random.Next(validRooms.Count)];
+        return pickPool[random.Next(pickPool.Count)];
     }
 
-    private bool TryPickProfileRoomScene(System.Random random, string previousScene, int depth, out string sceneName)
+    private bool TryPickProfileRoomScene(System.Random random, string previousScene, int depth, Dictionary<string, int> roomUseCounts, out string sceneName)
     {
         sceneName = null;
 
@@ -846,6 +876,7 @@ public class LevelRunManager : MonoBehaviour
         }
 
         List<LevelSceneCandidate> pickPool = repeatSafeCandidates.Count > 0 ? repeatSafeCandidates : candidates;
+        pickPool = KeepLeastUsedCandidates(pickPool, roomUseCounts);
         if (pickPool.Count == 0)
         {
             return false;
@@ -875,6 +906,76 @@ public class LevelRunManager : MonoBehaviour
 
         sceneName = pickPool[pickPool.Count - 1].SceneName;
         return true;
+    }
+
+    private List<LevelSceneCandidate> KeepLeastUsedCandidates(List<LevelSceneCandidate> candidates, Dictionary<string, int> roomUseCounts)
+    {
+        if (candidates.Count <= 1)
+        {
+            return candidates;
+        }
+
+        int lowestUseCount = int.MaxValue;
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            lowestUseCount = Mathf.Min(lowestUseCount, GetRoomUseCount(roomUseCounts, candidates[i].SceneName));
+        }
+
+        List<LevelSceneCandidate> leastUsedCandidates = new List<LevelSceneCandidate>();
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            if (GetRoomUseCount(roomUseCounts, candidates[i].SceneName) == lowestUseCount)
+            {
+                leastUsedCandidates.Add(candidates[i]);
+            }
+        }
+
+        return leastUsedCandidates;
+    }
+
+    private List<string> KeepLeastUsedRoomNames(List<string> roomNames, Dictionary<string, int> roomUseCounts)
+    {
+        if (roomNames.Count <= 1)
+        {
+            return roomNames;
+        }
+
+        int lowestUseCount = int.MaxValue;
+        for (int i = 0; i < roomNames.Count; i++)
+        {
+            lowestUseCount = Mathf.Min(lowestUseCount, GetRoomUseCount(roomUseCounts, roomNames[i]));
+        }
+
+        List<string> leastUsedRooms = new List<string>();
+        for (int i = 0; i < roomNames.Count; i++)
+        {
+            if (GetRoomUseCount(roomUseCounts, roomNames[i]) == lowestUseCount)
+            {
+                leastUsedRooms.Add(roomNames[i]);
+            }
+        }
+
+        return leastUsedRooms;
+    }
+
+    private int GetRoomUseCount(Dictionary<string, int> roomUseCounts, string sceneName)
+    {
+        if (roomUseCounts == null || string.IsNullOrWhiteSpace(sceneName))
+        {
+            return 0;
+        }
+
+        return roomUseCounts.TryGetValue(sceneName, out int useCount) ? useCount : 0;
+    }
+
+    private void IncrementRoomUseCount(Dictionary<string, int> roomUseCounts, string sceneName)
+    {
+        if (roomUseCounts == null || string.IsNullOrWhiteSpace(sceneName))
+        {
+            return;
+        }
+
+        roomUseCounts[sceneName] = GetRoomUseCount(roomUseCounts, sceneName) + 1;
     }
 
     private string BuildGraphLog()
