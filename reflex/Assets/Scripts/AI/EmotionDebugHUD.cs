@@ -3,18 +3,21 @@ using UnityEngine.InputSystem;
 
 public class EmotionDebugHUD : MonoBehaviour
 {
-    private const float Width = 360f;
+    private const float CompactWidth = 430f;
     private const float Padding = 12f;
 
     private static EmotionDebugHUD _instance;
 
     [SerializeField] private bool visible = true;
     [SerializeField] private Key toggleKey = Key.F3;
+    [SerializeField] private Key toggleFullscreenKey = Key.F4;
+    [SerializeField] private bool fullscreen;
 
     private GUIStyle _panelStyle;
     private GUIStyle _titleStyle;
     private GUIStyle _labelStyle;
     private GUIStyle _mutedStyle;
+    private Vector2 _scrollPosition;
 
     public static void EnsureExists()
     {
@@ -51,6 +54,11 @@ public class EmotionDebugHUD : MonoBehaviour
         {
             visible = !visible;
         }
+
+        if (Keyboard.current != null && Keyboard.current[toggleFullscreenKey].wasPressedThisFrame)
+        {
+            fullscreen = !fullscreen;
+        }
     }
 
     private void OnGUI()
@@ -67,14 +75,26 @@ public class EmotionDebugHUD : MonoBehaviour
         EmotionProfileSnapshot snapshot = engine.CurrentSnapshot;
         EmotionRoomReport lastRoom = engine.LastRoomReport;
 
-        Rect area = new Rect(Padding, Padding, Width, lastRoom.roomNumber > 0 ? 550f : 450f);
+        float width = fullscreen ? Screen.width - (Padding * 2f) : Mathf.Min(CompactWidth, Screen.width - (Padding * 2f));
+        float height = Screen.height - (Padding * 2f);
+        Rect area = new Rect(Padding, Padding, width, height);
         GUILayout.BeginArea(area, GUIContent.none, _panelStyle);
+        _scrollPosition = GUILayout.BeginScrollView(_scrollPosition);
 
         GUILayout.Label("EMOTION ENGINE", _titleStyle);
         DrawLine($"Profile: {snapshot.state}");
         DrawLine($"Aggression: {snapshot.aggressionScore:0.00}");
+        DrawLine($"Recent score: {snapshot.recentAggressionScore:0.00}");
+        DrawLine($"Confidence: {snapshot.confidence:0.00}");
         DrawLine($"Room active: {(engine.IsRoomActive ? "yes" : "no")}");
         DrawLine($"Active spawners: {snapshot.activeSpawnerCount}");
+        GUILayout.Space(6f);
+
+        GUILayout.Label("Score Factors", _mutedStyle);
+        DrawLine($"Damage pressure: {snapshot.damagePressureScore:0.00}");
+        DrawLine($"Combat intent: {snapshot.combatIntentScore:0.00}");
+        DrawLine($"Movement pressure: {snapshot.movementPressureScore:0.00}");
+        DrawLine($"Time pressure: {snapshot.timePressureScore:0.00}");
         GUILayout.Space(6f);
 
         GUILayout.Label("Director", _mutedStyle);
@@ -116,7 +136,8 @@ public class EmotionDebugHUD : MonoBehaviour
         }
 
         GUILayout.Space(6f);
-        GUILayout.Label($"Press {toggleKey} to hide/show", _mutedStyle);
+        GUILayout.Label($"Press {toggleKey} to hide/show. Press {toggleFullscreenKey} for fullscreen.", _mutedStyle);
+        GUILayout.EndScrollView();
         GUILayout.EndArea();
     }
 
@@ -148,6 +169,7 @@ public class EmotionDebugHUD : MonoBehaviour
         _labelStyle = new GUIStyle(GUI.skin.label)
         {
             fontSize = 13,
+            wordWrap = true,
             normal = { textColor = Color.white }
         };
 
@@ -155,6 +177,7 @@ public class EmotionDebugHUD : MonoBehaviour
         {
             fontSize = 12,
             fontStyle = FontStyle.Bold,
+            wordWrap = true,
             normal = { textColor = new Color(0.75f, 0.85f, 1f) }
         };
     }

@@ -13,6 +13,12 @@ public struct EmotionProfileSnapshot
 {
     public PlayerEmotionState state;
     public float aggressionScore;
+    public float recentAggressionScore;
+    public float confidence;
+    public float damagePressureScore;
+    public float combatIntentScore;
+    public float movementPressureScore;
+    public float timePressureScore;
     public float damageTaken;
     public int deathCount;
     public int enemiesEncountered;
@@ -99,6 +105,15 @@ public class EmotionEngine : MonoBehaviour
     [SerializeField] private float expectedRoomClearTime = 120f;
     [SerializeField] private float expectedDeaths = 2f;
 
+    [Header("Recent Behavior Tuning")]
+    [SerializeField, Range(0f, 1f)] private float recentBehaviorWeight = 0.6f;
+    [SerializeField] private float expectedRoomDamageTaken = 20f;
+    [SerializeField] private float expectedRoomEnemyEncounters = 4f;
+    [SerializeField] private float expectedRoomAttacks = 10f;
+    [SerializeField] private float expectedRoomMovementSpeed = 4f;
+    [SerializeField] private float expectedRoomDeaths = 1f;
+    [SerializeField] private float minimumEvidenceForChange = 0.25f;
+
     [Header("Adaptive Spawning")]
     [SerializeField] private float aggressiveSpawnMultiplier = 1.35f;
     [SerializeField] private float calmSpawnMultiplier = 0.85f;
@@ -108,6 +123,8 @@ public class EmotionEngine : MonoBehaviour
 
     public PlayerEmotionState CurrentEmotion { get; private set; }
     public float AggressionScore { get; private set; }
+    public float RecentAggressionScore { get; private set; }
+    public float Confidence { get; private set; }
     public EmotionProfileSnapshot CurrentSnapshot => BuildSnapshot();
     public EmotionRoomReport LastRoomReport { get; private set; }
     public bool IsRoomActive => _activeRoomContributors.Count > 0;
@@ -137,6 +154,10 @@ public class EmotionEngine : MonoBehaviour
     private float _roomStartScore;
     private float _roomStartMovementSpeedTotal;
     private int _roomStartMovementSamples;
+    private float _damagePressureScore;
+    private float _combatIntentScore;
+    private float _movementPressureScore;
+    private float _timePressureScore;
 
     private void Awake()
     {
@@ -151,6 +172,7 @@ public class EmotionEngine : MonoBehaviour
 
         CurrentEmotion = startingEmotion;
         AggressionScore = startingEmotion == PlayerEmotionState.Aggressive ? aggressiveThreshold : calmThreshold;
+        RecentAggressionScore = AggressionScore;
         _evaluationTimer = evaluationInterval;
 
         if (createDebugHud)
@@ -271,6 +293,7 @@ public class EmotionEngine : MonoBehaviour
     public void RecordAttackStarted()
     {
         _attacksPerformed++;
+        EvaluateEmotion(false);
     }
 
     public void RecordEnemyHit(float damage)
@@ -281,6 +304,7 @@ public class EmotionEngine : MonoBehaviour
         }
 
         _enemyHits++;
+        EvaluateEmotion(false);
     }
 
     public void RecordMovement(float speed, bool isMoving, bool isIdle)
@@ -338,6 +362,12 @@ public class EmotionEngine : MonoBehaviour
         LastRoomReport = default;
         CurrentEmotion = startingEmotion;
         AggressionScore = startingEmotion == PlayerEmotionState.Aggressive ? aggressiveThreshold : calmThreshold;
+        RecentAggressionScore = AggressionScore;
+        Confidence = 0f;
+        _damagePressureScore = 0f;
+        _combatIntentScore = 0f;
+        _movementPressureScore = 0f;
+        _timePressureScore = 0f;
         EmotionChanged?.Invoke(CurrentEmotion, BuildSnapshot());
     }
 
@@ -468,6 +498,11 @@ public class EmotionEngine : MonoBehaviour
         float targetScore = CalculateAggressionScore();
         AggressionScore = forceImmediate ? targetScore : Mathf.Lerp(AggressionScore, targetScore, scoreSmoothing);
 
+        if (Confidence < minimumEvidenceForChange)
+        {
+            return;
+        }
+
         PlayerEmotionState nextEmotion = CurrentEmotion;
         if (AggressionScore >= aggressiveThreshold)
         {
@@ -495,35 +530,175 @@ public class EmotionEngine : MonoBehaviour
 
     private float CalculateAggressionScore()
     {
-        float damageScore = SafeRatio(_damageTaken, expectedDamageTaken);
-        float encounterScore = SafeRatio(_encounteredEnemyIds.Count, expectedEnemyEncounters);
-        float attackScore = SafeRatio(_attacksPerformed, expectedAttacks);
-        float hitScore = _attacksPerformed <= 0 ? 0f : Mathf.Clamp01((float)_enemyHits / _attacksPerformed);
-        float movementScore = CalculateMovementScore();
-        float roomTimeScore = SafeRatio(GetRoomTimeForScoring(), expectedRoomClearTime);
-        float deathScore = SafeRatio(_deathCount, expectedDeaths);
+        float lifetimeScore = CalculateWeightedScore(
+            _damageTaken,
+            _deathCount,
+            _encounteredEnemyIds.Count,
+            _attacksPerformed,
+            _enemyHits,
+            GetAverageMovementSpeed(),
+            _timeRunning,
+            _timeIdle,
+            GetRoomTimeForScoring(),
+            expectedDamageTaken,
+            expectedDeaths,
+            expectedEnemyEncounters,
+            expectedAttacks,
+            expectedAverageMovementSpeed,
+            expectedRoomClearTime);
+
+        EmotionProfileSnapshot recentSnapshot = GetRecentBehaviorSnapshot();
+        RecentAggressionScore = CalculateWeightedScore(
+            recentSnapshot.damageTaken,
+            recentSnapshot.deathCount,
+            recentSnapshot.enemiesEncountered,
+            recentSnapshot.attacksPerformed,
+            recentSnapshot.enemyHits,
+            recentSnapshot.averageMovementSpeed,
+            recentSnapshot.timeRunning,
+            recentSnapshot.timeIdle,
+            GetRecentRoomTimeForScoring(recentSnapshot),
+            expectedRoomDamageTaken,
+            expectedRoomDeaths,
+            expectedRoomEnemyEncounters,
+            expectedRoomAttacks,
+            expectedRoomMovementSpeed,
+            expectedRoomClearTime);
+
+        Confidence = CalculateConfidence(recentSnapshot);
+        float effectiveRecentWeight = recentBehaviorWeight * Confidence;
+        return Mathf.Clamp01(Mathf.Lerp(lifetimeScore, RecentAggressionScore, effectiveRecentWeight));
+    }
+
+    private float CalculateWeightedScore(
+        float damageTaken,
+        int deathCount,
+        int enemiesEncountered,
+        int attacksPerformed,
+        int enemyHits,
+        float averageMovementSpeed,
+        float timeRunning,
+        float timeIdle,
+        float roomTime,
+        float expectedDamage,
+        float expectedDeathCount,
+        float expectedEncounters,
+        float expectedAttackCount,
+        float expectedMovementSpeed,
+        float expectedClearTime)
+    {
+        float damageScore = SafeRatio(damageTaken, expectedDamage);
+        float encounterScore = SafeRatio(enemiesEncountered, expectedEncounters);
+        float attackScore = SafeRatio(attacksPerformed, expectedAttackCount);
+        float hitScore = attacksPerformed <= 0 ? 0f : Mathf.Clamp01((float)enemyHits / attacksPerformed);
+        float movementScore = CalculateMovementScore(averageMovementSpeed, timeRunning, timeIdle, expectedMovementSpeed);
+        float roomTimeScore = SafeRatio(roomTime, expectedClearTime);
+        float deathScore = SafeRatio(deathCount, expectedDeathCount);
+
+        _damagePressureScore = Mathf.Clamp01((damageScore * 0.75f) + (deathScore * 0.25f));
+        _combatIntentScore = Mathf.Clamp01((encounterScore * 0.4f) + (attackScore * 0.4f) + (hitScore * 0.2f));
+        _movementPressureScore = movementScore;
+        _timePressureScore = roomTimeScore;
 
         float weightedScore =
-            damageScore * 0.24f +
-            encounterScore * 0.18f +
-            attackScore * 0.16f +
+            damageScore * 0.22f +
+            encounterScore * 0.16f +
+            attackScore * 0.18f +
             hitScore * 0.08f +
             movementScore * 0.14f +
-            roomTimeScore * 0.14f +
-            deathScore * 0.06f;
+            roomTimeScore * 0.12f +
+            deathScore * 0.10f;
 
         return Mathf.Clamp01(weightedScore);
     }
 
-    private float CalculateMovementScore()
+    private float CalculateMovementScore(float averageSpeed, float timeRunning, float timeIdle, float expectedMovementSpeed)
     {
-        float averageSpeed = GetAverageMovementSpeed();
-        float speedScore = SafeRatio(averageSpeed, expectedAverageMovementSpeed);
-        float trackedTime = Mathf.Max(0.01f, _timeRunning + _timeIdle);
-        float runningRatio = Mathf.Clamp01(_timeRunning / trackedTime);
-        float idleRatio = Mathf.Clamp01(_timeIdle / trackedTime);
+        float speedScore = SafeRatio(averageSpeed, expectedMovementSpeed);
+        float trackedTime = Mathf.Max(0.01f, timeRunning + timeIdle);
+        float runningRatio = Mathf.Clamp01(timeRunning / trackedTime);
+        float idleRatio = Mathf.Clamp01(timeIdle / trackedTime);
 
         return Mathf.Clamp01((speedScore * 0.5f) + (runningRatio * 0.35f) + ((1f - idleRatio) * 0.15f));
+    }
+
+    private EmotionProfileSnapshot GetRecentBehaviorSnapshot()
+    {
+        if (_roomTimerRunning)
+        {
+            return BuildRoomDeltaSnapshot(_currentRoomTime);
+        }
+
+        if (LastRoomReport.roomNumber > 0)
+        {
+            return BuildSnapshotFromRoomReport(LastRoomReport);
+        }
+
+        return BuildSnapshot();
+    }
+
+    private EmotionProfileSnapshot BuildRoomDeltaSnapshot(float roomTime)
+    {
+        float roomMovementSpeedTotal = _movementSpeedTotal - _roomStartMovementSpeedTotal;
+        int roomMovementSamples = _movementSamples - _roomStartMovementSamples;
+
+        return new EmotionProfileSnapshot
+        {
+            state = CurrentEmotion,
+            aggressionScore = AggressionScore,
+            damageTaken = _damageTaken - _roomStartSnapshot.damageTaken,
+            deathCount = _deathCount - _roomStartSnapshot.deathCount,
+            enemiesEncountered = _encounteredEnemyIds.Count - _roomStartSnapshot.enemiesEncountered,
+            attacksPerformed = _attacksPerformed - _roomStartSnapshot.attacksPerformed,
+            enemyHits = _enemyHits - _roomStartSnapshot.enemyHits,
+            timeRunning = _timeRunning - _roomStartSnapshot.timeRunning,
+            timeIdle = _timeIdle - _roomStartSnapshot.timeIdle,
+            averageMovementSpeed = roomMovementSamples > 0 ? roomMovementSpeedTotal / roomMovementSamples : 0f,
+            activeSpawnerCount = ActiveSpawnerCount,
+            currentRoomTime = roomTime,
+            lastRoomClearTime = _lastRoomClearTime
+        };
+    }
+
+    private EmotionProfileSnapshot BuildSnapshotFromRoomReport(EmotionRoomReport report)
+    {
+        return new EmotionProfileSnapshot
+        {
+            state = report.emotionAfter,
+            aggressionScore = report.scoreAfter,
+            damageTaken = report.damageTaken,
+            deathCount = report.deathCount,
+            enemiesEncountered = report.enemiesEncountered,
+            attacksPerformed = report.attacksPerformed,
+            enemyHits = report.enemyHits,
+            timeRunning = report.timeRunning,
+            timeIdle = report.timeIdle,
+            averageMovementSpeed = report.averageMovementSpeed,
+            activeSpawnerCount = ActiveSpawnerCount,
+            currentRoomTime = 0f,
+            lastRoomClearTime = report.duration
+        };
+    }
+
+    private float GetRecentRoomTimeForScoring(EmotionProfileSnapshot recentSnapshot)
+    {
+        return recentSnapshot.currentRoomTime > 0f ? recentSnapshot.currentRoomTime : recentSnapshot.lastRoomClearTime;
+    }
+
+    private float CalculateConfidence(EmotionProfileSnapshot recentSnapshot)
+    {
+        float actionEvidence = SafeRatio(recentSnapshot.attacksPerformed + recentSnapshot.enemyHits, expectedRoomAttacks);
+        float encounterEvidence = SafeRatio(recentSnapshot.enemiesEncountered, expectedRoomEnemyEncounters);
+        float damageEvidence = SafeRatio(recentSnapshot.damageTaken, expectedRoomDamageTaken);
+        float movementEvidence = SafeRatio(recentSnapshot.timeRunning + recentSnapshot.timeIdle, 20f);
+        float roomEvidence = recentSnapshot.lastRoomClearTime > 0f ? 1f : SafeRatio(recentSnapshot.currentRoomTime, 30f);
+
+        return Mathf.Clamp01(
+            actionEvidence * 0.25f +
+            encounterEvidence * 0.2f +
+            damageEvidence * 0.2f +
+            movementEvidence * 0.2f +
+            roomEvidence * 0.15f);
     }
 
     private float GetRoomTimeForScoring()
@@ -562,6 +737,12 @@ public class EmotionEngine : MonoBehaviour
         {
             state = CurrentEmotion,
             aggressionScore = AggressionScore,
+            recentAggressionScore = RecentAggressionScore,
+            confidence = Confidence,
+            damagePressureScore = _damagePressureScore,
+            combatIntentScore = _combatIntentScore,
+            movementPressureScore = _movementPressureScore,
+            timePressureScore = _timePressureScore,
             damageTaken = _damageTaken,
             deathCount = _deathCount,
             enemiesEncountered = _encounteredEnemyIds.Count,
