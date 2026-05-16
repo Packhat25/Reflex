@@ -3338,7 +3338,7 @@ GameObject:
   - component: {fileID: 675567419}
   - component: {fileID: 675567421}
   - component: {fileID: 675567420}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Hit Box
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3726,6 +3726,8 @@ GameObject:
   - component: {fileID: 786249933}
   - component: {fileID: 786249932}
   - component: {fileID: 786249934}
+  - component: {fileID: 786249935}
+  - component: {fileID: 786249936}
   m_Layer: 0
   m_Name: CinemachineCamera
   m_TagString: Untagged
@@ -3822,6 +3824,35 @@ MonoBehaviour:
     Time: 0
     Smoothing: 0
     IgnoreY: 0
+--- !u!114 &786249935
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 786249931}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 68bb026fafb42b14791938953eaace77, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.Cinemachine::Unity.Cinemachine.CinemachineBasicMultiChannelPerlin
+  NoiseProfile: {fileID: 11400000, guid: e9ce97b7a206dc64d90931ea044e0c72, type: 2}
+  PivotOffset: {x: 0, y: 0, z: 0}
+  AmplitudeGain: 0
+  FrequencyGain: 1
+  m_NoiseOffsets: {x: -152.78638, y: 971.8656, z: -139.89438}
+--- !u!114 &786249936
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 786249931}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 05cf338d0c25256409d7d543b8bdfc78, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CameraManager
 --- !u!4 &825732714 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 3138846644805708758, guid: e48e7c7c97b12e04a85267b3999861be, type: 3}
@@ -7401,7 +7432,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3517270142518645545}
   - component: {fileID: 3517270142518645546}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Claw
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -8570,6 +8601,10 @@ PrefabInstance:
       propertyPath: cameraObj
       value: 
       objectReference: {fileID: 330585545}
+    - target: {fileID: 5510873766451475314, guid: 009c2f1cdfb86994580f84de399ba8cb, type: 3}
+      propertyPath: weaponData
+      value: 
+      objectReference: {fileID: 11400000, guid: d0abc0b86a659514a80faf42f6f17388, type: 2}
     - target: {fileID: 8294327607503731119, guid: 009c2f1cdfb86994580f84de399ba8cb, type: 3}
       propertyPath: cameraObj
       value: 
@@ -8784,7 +8819,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3045671871767623204}
   - component: {fileID: 3045671871767623205}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Finger A
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -8904,7 +8939,7 @@ GameObject:
   - component: {fileID: 507717402108928591}
   - component: {fileID: 3973319516609288453}
   - component: {fileID: 7616749680373742526}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: cylinder_19
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -9219,7 +9254,7 @@ GameObject:
   - component: {fileID: 8758596924934452864}
   - component: {fileID: 2229944071440707842}
   - component: {fileID: 8758596924934452865}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: cylinder_16
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -9531,7 +9566,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 7632652287159266960}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Finger_5
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -10496,7 +10531,7 @@ GameObject:
   - component: {fileID: 3154113356894176027}
   - component: {fileID: 5561091341800271718}
   - component: {fileID: 7947886746996017111}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: cylinder_13
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -10877,7 +10912,7 @@ GameObject:
   - component: {fileID: 3046460732274710956}
   - component: {fileID: 4609074277078958333}
   - component: {fileID: 5393295067188460895}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: sphere_4
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -11832,7 +11867,7 @@ GameObject:
   - component: {fileID: 8439855611748809180}
   - component: {fileID: 7762340609112622106}
   - component: {fileID: 8825299803118978338}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: sphere_6
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -11915,7 +11950,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 772204249260591744}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Finger_2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -12588,7 +12623,7 @@ GameObject:
   - component: {fileID: 6347530001557237312}
   - component: {fileID: 401557626603109013}
   - component: {fileID: 1389873247548718214}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: sphere_2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -12606,7 +12641,7 @@ GameObject:
   - component: {fileID: 6979953593223369581}
   - component: {fileID: 8157056109473628572}
   - component: {fileID: 697997419687648225}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: beveled_cuboid_6
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -12790,7 +12825,7 @@ GameObject:
   - component: {fileID: 3460813998266403794}
   - component: {fileID: 630394350222969858}
   - component: {fileID: 4430830102420377508}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: beveled_cuboid_7
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -12857,7 +12892,7 @@ GameObject:
   - component: {fileID: 7509645550502473741}
   - component: {fileID: 4705335775989888608}
   - component: {fileID: 3923270638396939930}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: sphere_1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -12917,7 +12952,7 @@ GameObject:
   - component: {fileID: 8733326514345317984}
   - component: {fileID: 3212803257594861123}
   - component: {fileID: 8733326514345317985}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: cylinder_17
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -13403,7 +13438,7 @@ GameObject:
   - component: {fileID: 4982520812949291991}
   - component: {fileID: 3638542460150104487}
   - component: {fileID: 8248391855423973371}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: sphere_3
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -13578,7 +13613,7 @@ GameObject:
   - component: {fileID: 2818502161515141238}
   - component: {fileID: 3206211510919575180}
   - component: {fileID: 3869051377778157774}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: sphere
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -13684,7 +13719,7 @@ GameObject:
   - component: {fileID: 6526141629862470125}
   - component: {fileID: 3064273227272218211}
   - component: {fileID: 6526141629862470126}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: cylinder_18
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -14039,7 +14074,7 @@ GameObject:
   - component: {fileID: 4231125869141188284}
   - component: {fileID: 5324161159879752347}
   - component: {fileID: 5324161159879752348}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: cylinder_20
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -14711,7 +14746,7 @@ GameObject:
   - component: {fileID: 956076985823948231}
   - component: {fileID: 781284955476773066}
   - component: {fileID: 7462143261397860212}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: sphere_9
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -15130,7 +15165,7 @@ GameObject:
   - component: {fileID: 6783327282869321744}
   - component: {fileID: 7539821437666067127}
   - component: {fileID: 8245903410074660818}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: sphere_7
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -15704,7 +15739,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 9115742573305916549}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Finger 2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -15904,7 +15939,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7359680055538690273}
   - component: {fileID: 7359680055538690274}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Arm 2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -16113,7 +16148,7 @@ GameObject:
   m_Component:
   - component: {fileID: 8997691045912945931}
   - component: {fileID: 8997691045912945932}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Arm 3
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -16434,7 +16469,7 @@ GameObject:
   - component: {fileID: 391650907544962026}
   - component: {fileID: 6991566638444002139}
   - component: {fileID: 8356576670959123968}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: beveled_cuboid_3
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -16681,7 +16716,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5331224845983303744}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Finger 1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -17602,7 +17637,7 @@ GameObject:
   - component: {fileID: 2513776266688235653}
   - component: {fileID: 773495745989868798}
   - component: {fileID: 6355327769469165945}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: beveled_cuboid_5
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -17750,7 +17785,7 @@ GameObject:
   m_Component:
   - component: {fileID: 6412416263495418932}
   - component: {fileID: 6412416263495418933}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Joint 2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -17819,7 +17854,7 @@ GameObject:
   - component: {fileID: 4834163516208270603}
   - component: {fileID: 6689697888955142361}
   - component: {fileID: 6689697888955142362}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: cylinder_12
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -18203,7 +18238,7 @@ GameObject:
   m_Component:
   - component: {fileID: 313998433435298386}
   - component: {fileID: 5318755764785107352}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Finger B
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -18564,7 +18599,7 @@ GameObject:
   - component: {fileID: 543434078786696659}
   - component: {fileID: 8232616305075781527}
   - component: {fileID: 8232616305075781528}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: cylinder_15
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -18580,7 +18615,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2009502102599175309}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Finger_3
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -19042,7 +19077,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7138506551434527651}
   - component: {fileID: 7138506551434527652}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Joint 3
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -19160,7 +19195,7 @@ GameObject:
   - component: {fileID: 5652838852286912520}
   - component: {fileID: 950565816295199182}
   - component: {fileID: 6302669521333654029}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: beveled_cuboid_2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -19396,7 +19431,7 @@ GameObject:
   - component: {fileID: 1273025640819898019}
   - component: {fileID: 5248483800765045425}
   - component: {fileID: 360763237041726816}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: sphere_8
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -19414,7 +19449,7 @@ GameObject:
   - component: {fileID: 152272192816115314}
   - component: {fileID: 4820285822735064106}
   - component: {fileID: 8344405927482863245}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: beveled_cuboid_4
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -19432,7 +19467,7 @@ GameObject:
   - component: {fileID: 6587083921644664542}
   - component: {fileID: 632603686365742262}
   - component: {fileID: 838639113846920617}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: beveled_cuboid_8
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -19485,7 +19520,7 @@ GameObject:
   - component: {fileID: 6053373901270467723}
   - component: {fileID: 4244925176317830135}
   - component: {fileID: 6053373901270467724}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: cylinder_11
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -20292,7 +20327,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1038958404673496872}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Finger_4
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -21215,7 +21250,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8588722804937405448}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Finger_7
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -21432,7 +21467,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1205813354005708714}
   - component: {fileID: 6871937403253265116}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Arm 1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -21471,7 +21506,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1150795149405791230}
   - component: {fileID: 6874146695957114704}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Finger C
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -21907,7 +21942,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 7640197536664605418}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Finger_6
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -21988,7 +22023,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2417346352702854461}
   - component: {fileID: 7075574367369094192}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Joint 1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -22279,7 +22314,7 @@ GameObject:
   - component: {fileID: 2758289525340783737}
   - component: {fileID: 4923295796922813697}
   - component: {fileID: 5014489756974674500}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: sphere_5
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -22783,7 +22818,7 @@ GameObject:
   - component: {fileID: 4332867727387190541}
   - component: {fileID: 2658961634792718285}
   - component: {fileID: 4018115269074536905}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: beveled_cuboid
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -23921,7 +23956,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 7421960784568452827}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Finger 3
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -24105,7 +24140,7 @@ GameObject:
   - component: {fileID: 7515353984872536332}
   - component: {fileID: 4897468717439471310}
   - component: {fileID: 834818596011212550}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: beveled_cuboid_1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -26221,7 +26256,7 @@ GameObject:
   - component: {fileID: 9104121719445025219}
   - component: {fileID: 9104121719445025221}
   - component: {fileID: 9104121719445025220}
-  m_Layer: 6
+  m_Layer: 0
   m_Name: Claw
   m_TagString: Enemy
   m_Icon: {fileID: 0}
@@ -26591,8 +26626,8 @@ SceneRoots:
   - {fileID: 832575519}
   - {fileID: 6991494836676995977}
   - {fileID: 786249933}
-  - {fileID: 330585546}
   - {fileID: 523748604687458185}
+  - {fileID: 330585546}
   - {fileID: 864611028}
   - {fileID: 3295946009192153033}
   - {fileID: 2738632994202038092}
