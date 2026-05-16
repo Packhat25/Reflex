@@ -10,6 +10,8 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 ## Completed Work
 - Build scene order now boots through `Lobby` and includes boss/test scenes in Build Settings.
 - Default run profile now uses a fixed sequence from levels 1-5 into final boss.
+- Removed `Room_2` from the fixed run and replaced floor 5 with temporary `Level_4_Scene` reuse.
+- Repaired broken default generation profile asset serialization (resolved merge-marker corruption).
 - Door auto-binding now supports directional fallback naming used by non-door scene layouts.
 - Single-route nodes now bind all discovered exits to the same destination for clearer traversal.
 - No-door auto-advance fallback now prevents dead-end progression in scenes without explicit door candidates.
@@ -28,7 +30,7 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 
 ## Active Priorities
 - Playtest full path: Lobby -> L1 -> L2 -> L3 -> L4 -> L5 -> Boss -> Lobby.
-- Validate that directional fallback exits in Lobby/Room_2 are readable and reachable.
+- Validate that directional fallback exits in Lobby remain readable and reachable.
 - Validate gameplay feel in Unity Play Mode across multiple rooms.
 - Tune blend fields:
   - `confidenceBlendFloor`
@@ -50,7 +52,7 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
   - `hitIntentScale`
 
 ## Remaining Tasks
-- Create a dedicated `Level_5` scene to replace temporary scene reuse (`Room_2`) in the fixed run path.
+- Create a dedicated `Level_5` scene to replace temporary `Level_4_Scene` reuse in the fixed run path.
 - Playtest calm-to-aggressive transitions and aggressive-to-calm recovery.
 - Validate that room pacing remains readable at high spawn density.
 - Confirm enemy containment behavior still feels intentional under blended values.
