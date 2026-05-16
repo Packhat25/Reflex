@@ -41,6 +41,7 @@ public class TrapStateController : MonoBehaviour
     public DmgArea[] damageAreas;
     public LazerKnockback[] knockbackAreas;
     public Renderer[] renderersToToggle;
+    public Collider[] hurtboxColliders;
     public EnemySpawner[] enemySpawners;
 
     [Header("Enemy Spawners")]
@@ -49,6 +50,12 @@ public class TrapStateController : MonoBehaviour
     public bool disableSpawnersWhenInactive = true;
     public bool setSpawnerGameObjectsActive = true;
     public bool autoFindEnemySpawnersWhenEmpty = true;
+
+    [Header("Hurtbox Colliders")]
+    public bool controlHurtboxColliders = true;
+    public bool autoFindHurtboxCollidersWhenEmpty = true;
+    public string hurtboxColliderNameContains = "Cube";
+    public bool refreshHurtboxCollidersOnStateChange = true;
 
     [Header("Turn Off")]
     public TrapCondition turnOffWhen = TrapCondition.ManualOnly;
@@ -154,36 +161,52 @@ public class TrapStateController : MonoBehaviour
 
         if (controlEnemySpawners)
         {
-            if (enemySpawners == null)
+            if (enemySpawners != null)
             {
-                return;
-            }
+                foreach (EnemySpawner enemySpawner in enemySpawners)
+                {
+                    if (enemySpawner == null)
+                    {
+                        continue;
+                    }
 
-            foreach (EnemySpawner enemySpawner in enemySpawners)
+                    if (active && enableSpawnersWhenActive)
+                    {
+                        if (setSpawnerGameObjectsActive)
+                        {
+                            enemySpawner.gameObject.SetActive(true);
+                        }
+
+                        enemySpawner.enabled = true;
+                    }
+                    else if (!active && disableSpawnersWhenInactive)
+                    {
+                        enemySpawner.enabled = false;
+
+                        if (setSpawnerGameObjectsActive)
+                        {
+                            enemySpawner.gameObject.SetActive(false);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (controlHurtboxColliders && hurtboxColliders != null)
+        {
+            bool keepPassThroughWhenOff = !active &&
+                                          turnOnWhen == TrapCondition.PlayerPassesThrough &&
+                                          usePassThroughTriggerColliders;
+
+            foreach (Collider hurtboxCollider in hurtboxColliders)
             {
-                if (enemySpawner == null)
+                if (hurtboxCollider == null)
                 {
                     continue;
                 }
 
-                if (active && enableSpawnersWhenActive)
-                {
-                    if (setSpawnerGameObjectsActive)
-                    {
-                        enemySpawner.gameObject.SetActive(true);
-                    }
-
-                    enemySpawner.enabled = true;
-                }
-                else if (!active && disableSpawnersWhenInactive)
-                {
-                    enemySpawner.enabled = false;
-
-                    if (setSpawnerGameObjectsActive)
-                    {
-                        enemySpawner.gameObject.SetActive(false);
-                    }
-                }
+                bool shouldEnable = active || (keepPassThroughWhenOff && IsPassThroughCollider(hurtboxCollider));
+                hurtboxCollider.enabled = shouldEnable;
             }
         }
     }
@@ -267,13 +290,28 @@ public class TrapStateController : MonoBehaviour
 
     private bool AreAllWatchedEnemiesKilled()
     {
-        EnemyController[] watchedEnemies = GetWatchedEnemies();
-        if (watchedEnemies == null || watchedEnemies.Length == 0)
+        if (enemiesToWatch != null && enemiesToWatch.Length > 0)
+        {
+            return AreEnemyListCleared(enemiesToWatch);
+        }
+
+        if (AreControlledSpawnersConfigured())
+        {
+            return AreControlledSpawnersCleared();
+        }
+
+        EnemyController[] sceneWatchedEnemies = GetSceneWatchedEnemies();
+        if (sceneWatchedEnemies == null || sceneWatchedEnemies.Length == 0)
         {
             return hasFoundSceneEnemies;
         }
 
-        foreach (EnemyController enemy in watchedEnemies)
+        return AreEnemyListCleared(sceneWatchedEnemies);
+    }
+
+    private bool AreEnemyListCleared(EnemyController[] enemies)
+    {
+        foreach (EnemyController enemy in enemies)
         {
             if (enemy != null && enemy.isActiveAndEnabled && enemy.currentHealth > 0f)
             {
@@ -284,13 +322,35 @@ public class TrapStateController : MonoBehaviour
         return true;
     }
 
-    private EnemyController[] GetWatchedEnemies()
+    private bool AreControlledSpawnersConfigured()
     {
-        if (enemiesToWatch != null && enemiesToWatch.Length > 0)
+        return enemySpawners != null && enemySpawners.Length > 0;
+    }
+
+    private bool AreControlledSpawnersCleared()
+    {
+        bool foundSpawner = false;
+
+        foreach (EnemySpawner enemySpawner in enemySpawners)
         {
-            return enemiesToWatch;
+            if (enemySpawner == null)
+            {
+                continue;
+            }
+
+            foundSpawner = true;
+
+            if (!enemySpawner.HasSpawnedWave || enemySpawner.AliveEnemyCount > 0)
+            {
+                return false;
+            }
         }
 
+        return foundSpawner;
+    }
+
+    private EnemyController[] GetSceneWatchedEnemies()
+    {
         if (!searchSceneEnemiesWhenListEmpty)
         {
             return null;
@@ -348,6 +408,15 @@ public class TrapStateController : MonoBehaviour
         if (knockbackAreas == null || knockbackAreas.Length == 0)
         {
             knockbackAreas = GetComponentsInChildren<LazerKnockback>(includeInactive: true);
+        }
+
+        if ((hurtboxColliders == null || hurtboxColliders.Length == 0) && autoFindHurtboxCollidersWhenEmpty)
+        {
+            RefreshHurtboxColliders();
+        }
+        else if (refreshHurtboxCollidersOnStateChange && autoFindHurtboxCollidersWhenEmpty)
+        {
+            RefreshHurtboxColliders();
         }
 
         if ((enemySpawners == null || enemySpawners.Length == 0) && autoFindEnemySpawnersWhenEmpty)
@@ -419,6 +488,29 @@ public class TrapStateController : MonoBehaviour
         passThroughTriggerColliders = matchingColliders.ToArray();
     }
 
+    [ContextMenu("Refresh Hurtbox Colliders")]
+    public void RefreshHurtboxColliders()
+    {
+        Collider[] childColliders = GetComponentsInChildren<Collider>(includeInactive: true);
+        List<Collider> matchingColliders = new List<Collider>();
+
+        foreach (Collider childCollider in childColliders)
+        {
+            if (childCollider == null)
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(hurtboxColliderNameContains) ||
+                ContainsIgnoreCase(childCollider.gameObject.name, hurtboxColliderNameContains))
+            {
+                matchingColliders.Add(childCollider);
+            }
+        }
+
+        hurtboxColliders = matchingColliders.ToArray();
+    }
+
     private void ConfigurePassThroughTriggerColliders()
     {
         if (passThroughTriggerColliders == null)
@@ -455,6 +547,24 @@ public class TrapStateController : MonoBehaviour
     public void RefreshEnemySpawners()
     {
         enemySpawners = GetComponentsInChildren<EnemySpawner>(includeInactive: true);
+    }
+
+    private bool IsPassThroughCollider(Collider colliderToCheck)
+    {
+        if (passThroughTriggerColliders == null)
+        {
+            return false;
+        }
+
+        foreach (Collider passThroughCollider in passThroughTriggerColliders)
+        {
+            if (passThroughCollider == colliderToCheck)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private bool ShouldToggleRenderer(Renderer rendererToCheck)

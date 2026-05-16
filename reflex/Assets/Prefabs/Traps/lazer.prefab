@@ -390,12 +390,17 @@ MonoBehaviour:
   damageAreas: []
   knockbackAreas: []
   renderersToToggle: []
+  hurtboxColliders: []
   enemySpawners: []
   controlEnemySpawners: 1
   enableSpawnersWhenActive: 1
   disableSpawnersWhenInactive: 1
   setSpawnerGameObjectsActive: 1
   autoFindEnemySpawnersWhenEmpty: 1
+  controlHurtboxColliders: 1
+  autoFindHurtboxCollidersWhenEmpty: 1
+  hurtboxColliderNameContains: Cube
+  refreshHurtboxCollidersOnStateChange: 1
   turnOffWhen: 0
   turnOffDelay: 3
   turnOnWhen: 0

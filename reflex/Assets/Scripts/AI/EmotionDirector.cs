@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public enum EmotionDirectorStrategy
 {
@@ -78,9 +80,17 @@ public class EmotionDirector : MonoBehaviour
     [SerializeField] private bool useContinuousBlend = true;
     [SerializeField, Range(0f, 1f)] private float confidenceBlendFloor = 0.3f;
 
+    [Header("World Tint")]
+    [SerializeField] private bool applyWorldTint = true;
+    [SerializeField, Range(0f, 1f)] private float ambientTintStrength = 0.2f;
+    [SerializeField, Range(0f, 1f)] private float cameraTintStrength = 0.16f;
+
     public EmotionDirectorDirective CurrentDirective { get; private set; }
     private PlayerEmotionState _lastLoggedEmotion;
     private float _lastLoggedBlend = -1f;
+    private bool _hasBaselineAmbientColor;
+    private Color _baselineAmbientColor;
+    private readonly Dictionary<int, Color> _baselineCameraColors = new Dictionary<int, Color>();
 
     private void Awake()
     {
@@ -92,6 +102,7 @@ public class EmotionDirector : MonoBehaviour
 
         _instance = this;
         DontDestroyOnLoad(gameObject);
+        CacheVisualBaselines();
         RefreshDirective(EmotionEngine.Instance.CurrentEmotion, EmotionEngine.Instance.CurrentSnapshot, "startup");
     }
 
@@ -100,6 +111,7 @@ public class EmotionDirector : MonoBehaviour
         EmotionEngine.EmotionChanged += HandleEmotionChanged;
         EmotionEngine.EmotionProfileUpdated += HandleEmotionProfileUpdated;
         EmotionEngine.RoomEvaluated += HandleRoomEvaluated;
+        SceneManager.sceneLoaded += HandleSceneLoaded;
     }
 
     private void OnDisable()
@@ -107,6 +119,8 @@ public class EmotionDirector : MonoBehaviour
         EmotionEngine.EmotionChanged -= HandleEmotionChanged;
         EmotionEngine.EmotionProfileUpdated -= HandleEmotionProfileUpdated;
         EmotionEngine.RoomEvaluated -= HandleRoomEvaluated;
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+        RestoreVisualBaselines();
     }
 
     private void OnDestroy()
@@ -145,6 +159,7 @@ public class EmotionDirector : MonoBehaviour
     private void RefreshDirective(PlayerEmotionState emotionState, EmotionProfileSnapshot snapshot, string reason)
     {
         CurrentDirective = BuildDirective(emotionState, snapshot);
+        ApplyWorldTint(CurrentDirective);
         DirectiveChanged?.Invoke(CurrentDirective);
 
         if (logDirectorDecisions && ShouldLogDirective(reason, CurrentDirective))
@@ -214,5 +229,86 @@ public class EmotionDirector : MonoBehaviour
 
         float confidenceInfluence = Mathf.Lerp(confidenceBlendFloor, 1f, Mathf.Clamp01(snapshot.confidence));
         return Mathf.Lerp(0.5f, scoreBlend, confidenceInfluence);
+    }
+
+    private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        CacheVisualBaselines();
+        ApplyWorldTint(CurrentDirective);
+    }
+
+    private void CacheVisualBaselines()
+    {
+        _baselineAmbientColor = RenderSettings.ambientLight;
+        _hasBaselineAmbientColor = true;
+        _baselineCameraColors.Clear();
+
+        Camera[] cameras = Camera.allCameras;
+        for (int cameraIndex = 0; cameraIndex < cameras.Length; cameraIndex++)
+        {
+            Camera camera = cameras[cameraIndex];
+            if (camera != null)
+            {
+                _baselineCameraColors[camera.GetInstanceID()] = camera.backgroundColor;
+            }
+        }
+    }
+
+    private void RestoreVisualBaselines()
+    {
+        if (_hasBaselineAmbientColor)
+        {
+            RenderSettings.ambientLight = _baselineAmbientColor;
+        }
+
+        Camera[] cameras = Camera.allCameras;
+        for (int cameraIndex = 0; cameraIndex < cameras.Length; cameraIndex++)
+        {
+            Camera camera = cameras[cameraIndex];
+            if (camera == null)
+            {
+                continue;
+            }
+
+            if (_baselineCameraColors.TryGetValue(camera.GetInstanceID(), out Color baselineColor))
+            {
+                camera.backgroundColor = baselineColor;
+            }
+        }
+    }
+
+    private void ApplyWorldTint(EmotionDirectorDirective directive)
+    {
+        if (!applyWorldTint)
+        {
+            RestoreVisualBaselines();
+            return;
+        }
+
+        if (!_hasBaselineAmbientColor)
+        {
+            CacheVisualBaselines();
+        }
+
+        RenderSettings.ambientLight = Color.Lerp(_baselineAmbientColor, directive.worldTint, ambientTintStrength);
+
+        Camera[] cameras = Camera.allCameras;
+        for (int cameraIndex = 0; cameraIndex < cameras.Length; cameraIndex++)
+        {
+            Camera camera = cameras[cameraIndex];
+            if (camera == null)
+            {
+                continue;
+            }
+
+            int cameraId = camera.GetInstanceID();
+            if (!_baselineCameraColors.TryGetValue(cameraId, out Color baselineColor))
+            {
+                baselineColor = camera.backgroundColor;
+                _baselineCameraColors[cameraId] = baselineColor;
+            }
+
+            camera.backgroundColor = Color.Lerp(baselineColor, directive.worldTint, cameraTintStrength);
+        }
     }
 }

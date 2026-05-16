@@ -110,6 +110,18 @@ public class ChaseState : IEnemyState
         }
 
         Vector3 playerPosition = _enemy.player.position;
+        Vector3 tacticalTarget = _enemy.GetDirectorChaseDestination(playerPosition);
+        bool containmentStrategy =
+            _enemy.useEmotionDirector &&
+            _enemy.CurrentDirective.strategy == EmotionDirectorStrategy.AggressionContainment;
+
+        if (containmentStrategy)
+        {
+            Vector3 containmentDestination = tacticalTarget + (GetLocalSeparationOffset() * 0.55f);
+            TrySetDestination(containmentDestination, 0.35f, 3f);
+            return;
+        }
+
         Vector3 approachDirection = _personalOffset;
         Vector3 directionFromPlayer = _enemy.transform.position - playerPosition;
         directionFromPlayer.y = 0f;
@@ -119,7 +131,7 @@ public class ChaseState : IEnemyState
             approachDirection = Vector3.Slerp(approachDirection, directionFromPlayer.normalized, 0.35f).normalized;
         }
 
-        Vector3 destination = playerPosition + approachDirection * GetRingDistance();
+        Vector3 destination = tacticalTarget + approachDirection * GetRingDistance();
         destination += GetLocalSeparationOffset();
         TrySetDestination(destination, 0.45f, 3f);
     }

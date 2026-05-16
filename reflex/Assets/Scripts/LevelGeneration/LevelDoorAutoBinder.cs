@@ -56,6 +56,7 @@ public static class LevelDoorAutoBinder
 
         List<Transform> singularDoors = new List<Transform>();
         List<Transform> doorGroups = new List<Transform>();
+        List<Transform> directionalDoors = new List<Transform>();
 
         for (int i = 0; i < transforms.Length; i++)
         {
@@ -70,9 +71,23 @@ public static class LevelDoorAutoBinder
             {
                 doorGroups.Add(candidate);
             }
+            else if (IsDirectionalDoorName(normalizedName))
+            {
+                directionalDoors.Add(candidate);
+            }
         }
 
-        return singularDoors.Count > 0 ? singularDoors : doorGroups;
+        if (singularDoors.Count > 0)
+        {
+            return singularDoors;
+        }
+
+        if (doorGroups.Count > 0)
+        {
+            return doorGroups;
+        }
+
+        return directionalDoors;
     }
 
     private static bool IsSingularDoorName(string normalizedName)
@@ -92,6 +107,25 @@ public static class LevelDoorAutoBinder
         return normalizedName == "doors" ||
                normalizedName.StartsWith("doors ", StringComparison.Ordinal) ||
                normalizedName.StartsWith("doorrs ", StringComparison.Ordinal);
+    }
+
+    private static bool IsDirectionalDoorName(string normalizedName)
+    {
+        return IsDirectionAlias(normalizedName, "north") ||
+               IsDirectionAlias(normalizedName, "south") ||
+               IsDirectionAlias(normalizedName, "east") ||
+               IsDirectionAlias(normalizedName, "west");
+    }
+
+    private static bool IsDirectionAlias(string normalizedName, string direction)
+    {
+        return normalizedName == direction ||
+               normalizedName == "walls_" + direction ||
+               normalizedName == "wall_" + direction ||
+               normalizedName == "walls " + direction ||
+               normalizedName == "wall " + direction ||
+               normalizedName.StartsWith("walls_" + direction + "_", StringComparison.Ordinal) ||
+               normalizedName.StartsWith("walls " + direction + " ", StringComparison.Ordinal);
     }
 
     private static void EnsureInteractionCollider(LevelDoor door)

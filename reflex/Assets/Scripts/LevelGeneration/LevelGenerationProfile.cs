@@ -84,6 +84,7 @@ public class LevelGenerationProfile : ScriptableObject
     [Header("Door Rules")]
     [SerializeField] private bool lockDoorsWhileRoomActive = true;
     [SerializeField] private bool autoBindSceneDoors = true;
+    [SerializeField] private bool autoAdvanceWhenNoDoors = true;
 
     [Header("Progression")]
     [SerializeField] private bool unlockCurrentLevelAfterClear = true;
@@ -105,6 +106,7 @@ public class LevelGenerationProfile : ScriptableObject
     public bool RegenerateWhenReturningToLobby => regenerateWhenReturningToLobby;
     public bool LockDoorsWhileRoomActive => lockDoorsWhileRoomActive;
     public bool AutoBindSceneDoors => autoBindSceneDoors;
+    public bool AutoAdvanceWhenNoDoors => autoAdvanceWhenNoDoors;
     public bool UnlockCurrentLevelAfterClear => unlockCurrentLevelAfterClear;
     public bool UnlockLevelsWithoutSpawners => unlockLevelsWithoutSpawners;
     public bool DisableSpawnersAfterLevelClear => disableSpawnersAfterLevelClear;

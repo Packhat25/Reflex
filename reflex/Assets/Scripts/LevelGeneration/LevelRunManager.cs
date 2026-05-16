@@ -62,6 +62,7 @@ public class LevelRunManager : MonoBehaviour
     [Header("Door Rules")]
     [SerializeField] private bool lockDoorsWhileRoomActive = true;
     [SerializeField] private bool autoBindSceneDoors = true;
+    [SerializeField] private bool autoAdvanceWhenNoDoors = true;
 
     [Header("Progression")]
     [SerializeField] private bool unlockCurrentLevelAfterClear = true;
@@ -569,6 +570,9 @@ public class LevelRunManager : MonoBehaviour
         {
             Debug.Log("Level cleared: node " + node.id + " depth " + node.depth + " (" + node.sceneName + ") because " + reason + ".");
         }
+
+        List<LevelDoor> doors = LevelDoorAutoBinder.FindOrCreateDoors();
+        TryAutoAdvanceWithoutDoors(node, doors.Count, "level cleared");
     }
 
     private bool ShouldDisableSpawnersAfterClear()
@@ -624,9 +628,19 @@ public class LevelRunManager : MonoBehaviour
             return;
         }
 
+        if (!SceneNameEquals(currentNode.sceneName, sceneName))
+        {
+            ClearDoors(doors);
+            return;
+        }
+
         for (int i = 0; i < doors.Count; i++)
         {
-            if (i < currentNode.connections.Count)
+            if (currentNode.connections.Count == 1)
+            {
+                doors[i].Configure(BuildDoorRoute(currentNode.connections[0]));
+            }
+            else if (i < currentNode.connections.Count)
             {
                 doors[i].Configure(BuildDoorRoute(currentNode.connections[i]));
             }
@@ -641,6 +655,8 @@ public class LevelRunManager : MonoBehaviour
             Debug.Log("Bound " + Mathf.Min(doors.Count, currentNode.connections.Count) +
                       " generated door route(s) in " + sceneName + " from node " + currentNode.id + ".");
         }
+
+        TryAutoAdvanceWithoutDoors(currentNode, doors.Count, "scene has no generated door candidates");
     }
 
     private void ClearDoors(List<LevelDoor> doors)
@@ -1027,6 +1043,44 @@ public class LevelRunManager : MonoBehaviour
         return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
     }
 
+    private void TryAutoAdvanceWithoutDoors(GeneratedLevelNode node, int availableDoorCount, string reason)
+    {
+        if (!AutoAdvanceWhenNoDoors || node == null || availableDoorCount > 0)
+        {
+            return;
+        }
+
+        if (!SceneNameEquals(SceneManager.GetActiveScene().name, node.sceneName))
+        {
+            return;
+        }
+
+        if (node.connections.Count != 1)
+        {
+            if (LogProgression && node.connections.Count > 1)
+            {
+                Debug.LogWarning("Auto-advance is disabled in scene '" + node.sceneName +
+                                 "' because it has no generated doors and multiple routes.");
+            }
+
+            return;
+        }
+
+        // Non-lobby nodes should only auto-advance after the room is cleared.
+        if (node.id != 0 && !IsCurrentNodeCleared)
+        {
+            return;
+        }
+
+        if (LogProgression)
+        {
+            Debug.Log("Auto-advancing from node " + node.id + " (" + node.sceneName +
+                      ") because " + reason + ".");
+        }
+
+        TravelTo(BuildDoorRoute(node.connections[0]));
+    }
+
     private void ResetPersistentPlayerRunState()
     {
         if (_persistentPlayer != null)
@@ -1115,6 +1169,7 @@ public class LevelRunManager : MonoBehaviour
     private bool RegenerateWhenReturningToLobby => generationProfile != null ? generationProfile.RegenerateWhenReturningToLobby : regenerateWhenReturningToLobby;
     private bool LockDoorsWhileRoomActive => generationProfile != null ? generationProfile.LockDoorsWhileRoomActive : lockDoorsWhileRoomActive;
     private bool AutoBindSceneDoors => generationProfile != null ? generationProfile.AutoBindSceneDoors : autoBindSceneDoors;
+    private bool AutoAdvanceWhenNoDoors => generationProfile != null ? generationProfile.AutoAdvanceWhenNoDoors : autoAdvanceWhenNoDoors;
     private bool UnlockCurrentLevelAfterClear => generationProfile != null ? generationProfile.UnlockCurrentLevelAfterClear : unlockCurrentLevelAfterClear;
     private bool UnlockLevelsWithoutSpawners => generationProfile != null ? generationProfile.UnlockLevelsWithoutSpawners : unlockLevelsWithoutSpawners;
     private bool DisableSpawnersAfterLevelClear => generationProfile != null ? generationProfile.DisableSpawnersAfterLevelClear : disableSpawnersAfterLevelClear;

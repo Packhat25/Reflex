@@ -1,19 +1,30 @@
 ## Current Game Stage
-Core combat loop and level flow are implemented, with active tuning on adaptive difficulty/pressure through the emotion system.
+Lobby-first run flow is now wired with deterministic progression to boss, with active tuning still focused on adaptive difficulty/pressure through the emotion system.
 
 ## Current Scope
+- Keep lobby as the build entry scene and first gameplay touchpoint.
+- Maintain stable level progression from early floors through boss.
 - Keep the player behavior analysis loop responsive and interpretable.
 - Tune game adaptation to react without hard binary jumps.
 
 ## Completed Work
+- Build scene order now boots through `Lobby` and includes boss/test scenes in Build Settings.
+- Default run profile now uses a fixed sequence from levels 1-5 into final boss.
+- Door auto-binding now supports directional fallback naming used by non-door scene layouts.
+- Single-route nodes now bind all discovered exits to the same destination for clearer traversal.
+- No-door auto-advance fallback now prevents dead-end progression in scenes without explicit door candidates.
 - Emotion engine records and scores player behavior using live and recent room signals.
 - Room lifecycle integration across spawners is implemented.
 - Emotion director applies adaptation directives to enemies and spawning.
 - Continuous adaptation blend added from aggression score + confidence.
 - Continuous respawn timing scaling added in spawner.
 - Debug HUD now exposes adaptation blend/confidence.
+- Chase behavior now consumes director standoff/retreat tactical destination.
+- World tint is now applied in scene visuals (ambient + camera background).
 
 ## Active Priorities
+- Playtest full path: Lobby -> L1 -> L2 -> L3 -> L4 -> L5 -> Boss -> Lobby.
+- Validate that directional fallback exits in Lobby/Room_2 are readable and reachable.
 - Validate gameplay feel in Unity Play Mode across multiple rooms.
 - Tune blend fields:
   - `confidenceBlendFloor`
@@ -21,6 +32,7 @@ Core combat loop and level flow are implemented, with active tuning on adaptive 
   - `respawnRateConfidenceFloor`
 
 ## Remaining Tasks
+- Create dedicated `Level_4` and `Level_5` scenes to replace temporary scene reuse in the fixed run path.
 - Playtest calm-to-aggressive transitions and aggressive-to-calm recovery.
 - Validate that room pacing remains readable at high spawn density.
 - Confirm enemy containment behavior still feels intentional under blended values.
@@ -34,6 +46,7 @@ Core combat loop and level flow are implemented, with active tuning on adaptive 
 - In-editor playtesting not executed in this session.
 
 ## Systems In Progress
+- Level flow validation and scene progression polish.
 - Emotion engine tuning and pacing balance.
 
 ## Testing Status

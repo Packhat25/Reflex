@@ -106,6 +106,7 @@ Assets/
    TrapStateController.cs
   Visuals/
    Billboarding.cs
+   CameraManager.cs
    PerspectiveChanger.cs
    PlayerAnimation.cs
    PlayerOcclusionFader.cs

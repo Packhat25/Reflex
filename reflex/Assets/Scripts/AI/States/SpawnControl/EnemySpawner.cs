@@ -26,6 +26,16 @@ public class EnemySpawner : MonoBehaviour
     private bool _waitingForRoomToClear;
     private bool _hasSpawnedWave;
 
+    public bool HasSpawnedWave => _hasSpawnedWave;
+    public int AliveEnemyCount
+    {
+        get
+        {
+            RemoveDestroyedEnemies();
+            return _currentEnemies.Count;
+        }
+    }
+
     void Start()
     {
         SpawnWave();
