@@ -10,6 +10,10 @@ public struct AttackStep
     public float attackStunDuration;
     public float dashInDistance; // New field for dash-in distance
     public float dashInVelocity; // New field for dash-in velocity
+    [Header("Camera Shake Settings")]
+    public float cameraShakeIntensity; // New field for camera shake intensity
+    public float cameraShakeDuration; // New field for camera shake duration
+    public float cameraShakeFrequency; // New field for camera shake frequency
 }
 
 [CreateAssetMenu(fileName = "NewWeaponData", menuName = "Combat/Weapon Data")]

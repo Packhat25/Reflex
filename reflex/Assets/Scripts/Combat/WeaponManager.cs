@@ -182,6 +182,8 @@ public class WeaponManager : MonoBehaviour
 
         Collider[] hitEnemies = Physics.OverlapBox(center, halfExtents, orientation, enemyLayer);
         AttackStep step = playerManager.weaponData.comboChain[playerManager.currentComboIndex - 1];
+        CameraManager.Instance.StartCoroutine(CameraManager.Instance.ShakeCamera(step.cameraShakeIntensity, step.cameraShakeDuration, step.cameraShakeFrequency));
+        Debug.Log("Camera Shake Intensity: " + step.cameraShakeIntensity + ", Duration: " + step.cameraShakeDuration + ", Frequency: " + step.cameraShakeFrequency);
         float finalDamage = step.attackDamage * playerManager.TotalDamageMultiplier;
         float attackStunDuration = step.attackStunDuration;
         //chance for crit
@@ -215,7 +217,6 @@ public class WeaponManager : MonoBehaviour
                 Debug.Log("<color=green>Healed 1 HP!</color>");
             }
         }
-
     }
 
     public void HitboxOff()
