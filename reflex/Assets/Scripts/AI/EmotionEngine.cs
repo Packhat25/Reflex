@@ -57,6 +57,7 @@ public struct EmotionRoomReport
 public class EmotionEngine : MonoBehaviour
 {
     public static event Action<PlayerEmotionState, EmotionProfileSnapshot> EmotionChanged;
+    public static event Action<EmotionProfileSnapshot> EmotionProfileUpdated;
     public static event Action<EmotionRoomReport> RoomEvaluated;
 
     private sealed class ActiveRoomContributor
@@ -497,6 +498,8 @@ public class EmotionEngine : MonoBehaviour
     {
         float targetScore = CalculateAggressionScore();
         AggressionScore = forceImmediate ? targetScore : Mathf.Lerp(AggressionScore, targetScore, scoreSmoothing);
+        EmotionProfileSnapshot snapshot = BuildSnapshot();
+        EmotionProfileUpdated?.Invoke(snapshot);
 
         if (Confidence < minimumEvidenceForChange)
         {
@@ -519,7 +522,6 @@ public class EmotionEngine : MonoBehaviour
         }
 
         CurrentEmotion = nextEmotion;
-        EmotionProfileSnapshot snapshot = BuildSnapshot();
         EmotionChanged?.Invoke(CurrentEmotion, snapshot);
 
         if (logEmotionChanges)

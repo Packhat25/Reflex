@@ -99,6 +99,7 @@ public class EmotionDebugHUD : MonoBehaviour
 
         GUILayout.Label("Director", _mutedStyle);
         DrawLine($"Strategy: {directive.strategy}");
+        DrawLine($"Blend / confidence: {directive.aggressionBlend:0.00} / {directive.confidence:0.00}");
         DrawLine($"Spawn x{directive.spawnMultiplier:0.00}");
         DrawLine($"Enemy speed x{directive.enemySpeedMultiplier:0.00}");
         DrawLine($"Enemy cooldown x{directive.enemyAttackCooldownMultiplier:0.00}");

@@ -13,8 +13,10 @@ public class EnemySpawner : MonoBehaviour
     [Header("Emotion Spawn Scaling")]
     public bool useEmotionSpawnCount = true;
     public bool useEmotionSpawnRate = true;
+    public bool useContinuousEmotionRespawnRate = true;
     [Min(0.01f)] public float calmRespawnDelayMultiplier = 1.25f;
     [Min(0.01f)] public float aggressiveRespawnDelayMultiplier = 0.65f;
+    [Range(0f, 1f)] public float respawnRateConfidenceFloor = 0.3f;
     [Min(0f)] public float minimumRespawnDelay = 0.25f;
     public bool logEmotionSpawnRate = true;
 
@@ -122,9 +124,20 @@ public class EnemySpawner : MonoBehaviour
             return Mathf.Max(minimumRespawnDelay, respawnDelay);
         }
 
-        float multiplier = EmotionEngine.Instance.CurrentEmotion == PlayerEmotionState.Aggressive
-            ? aggressiveRespawnDelayMultiplier
-            : calmRespawnDelayMultiplier;
+        float multiplier;
+        if (useContinuousEmotionRespawnRate)
+        {
+            EmotionEngine engine = EmotionEngine.Instance;
+            float confidenceInfluence = Mathf.Lerp(respawnRateConfidenceFloor, 1f, engine.Confidence);
+            float blend = Mathf.Lerp(0.5f, engine.AggressionScore, confidenceInfluence);
+            multiplier = Mathf.Lerp(calmRespawnDelayMultiplier, aggressiveRespawnDelayMultiplier, blend);
+        }
+        else
+        {
+            multiplier = EmotionEngine.Instance.CurrentEmotion == PlayerEmotionState.Aggressive
+                ? aggressiveRespawnDelayMultiplier
+                : calmRespawnDelayMultiplier;
+        }
 
         return Mathf.Max(minimumRespawnDelay, respawnDelay * multiplier);
     }
