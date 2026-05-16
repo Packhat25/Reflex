@@ -13,7 +13,11 @@ public class AttackState : IEnemyState
 
     public void OnEnter()
     {
-        _enemy.agent.isStopped = true;
+        if (_enemy.agent != null && _enemy.agent.isActiveAndEnabled && _enemy.agent.isOnNavMesh)
+        {
+            _enemy.agent.isStopped = true;
+            _enemy.agent.ResetPath();
+        }
 
         _attackTimer = _enemy.GetDirectorAttackOpeningDelay();
     }
@@ -45,7 +49,7 @@ public class AttackState : IEnemyState
 
         // 3. Only go back to Chase if the player runs away
         float distance = Vector3.Distance(_enemy.transform.position, _enemy.player.position);
-        if (distance > _enemy.attackRange)
+        if (distance > GetAttackReleaseDistance())
         {
             _enemy.ChangeState(new ChaseState(_enemy));
         }
@@ -53,6 +57,25 @@ public class AttackState : IEnemyState
 
     public void OnExit()
     {
-        _enemy.agent.isStopped = false;
+        if (_enemy.agent != null && _enemy.agent.isActiveAndEnabled && _enemy.agent.isOnNavMesh)
+        {
+            _enemy.agent.isStopped = false;
+        }
+    }
+
+    private float GetAttackRange()
+    {
+        if (_enemy.attackRange > 0f)
+        {
+            return _enemy.attackRange;
+        }
+
+        return _enemy.EnemyStatData != null ? Mathf.Max(0.25f, _enemy.EnemyStatData.attackRange) : 2f;
+    }
+
+    private float GetAttackReleaseDistance()
+    {
+        float attackRange = GetAttackRange();
+        return Mathf.Max(attackRange + 0.35f, attackRange * 1.22f);
     }
 }
