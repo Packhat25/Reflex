@@ -61,7 +61,6 @@ public class LevelRunManager : MonoBehaviour
     [SerializeField, Min(1)] private int maxDoorChoices = 3;
     [SerializeField, Min(1)] private int maxForwardRoomSkip = 3;
     [SerializeField] private int fixedSeed;
-    [SerializeField] private bool regenerateWhenReturningToLobby = true;
 
     [Header("Floor Loop")]
     [SerializeField, Min(1)] private int startingFloor = 1;
@@ -95,8 +94,6 @@ public class LevelRunManager : MonoBehaviour
     private int _pendingNodeId = -1;
     private int _deepestDepthReached;
     private int _activeSeed;
-    private bool _regenerateOnNextLobbyLoad;
-    private bool _advanceFloorOnNextLobbyLoad;
     private int _currentFloor = 1;
     private PlayerManager _persistentPlayer;
 
@@ -280,7 +277,7 @@ public class LevelRunManager : MonoBehaviour
         }
 
         BuildForwardConnections(random);
-        ConnectLastRoomToLobby();
+        ConnectLastStageToFloorTransition();
 
         if (LogGeneratedGraph)
         {
@@ -310,12 +307,21 @@ public class LevelRunManager : MonoBehaviour
             return;
         }
 
-        bool returningToLobby = destination.id == 0 && _currentNodeId != 0;
-        bool completedFloor = returningToLobby && _currentNodeId == GeneratedRoomCount;
-        _pendingNodeId = destination.id;
-        _advanceFloorOnNextLobbyLoad = completedFloor;
-        _regenerateOnNextLobbyLoad = RegenerateWhenReturningToLobby && returningToLobby;
+        if (destination.id == 0 && _currentNodeId != 0)
+        {
+            if (_currentNodeId == GeneratedRoomCount)
+            {
+                AdvanceToNextFloor();
+            }
+            else
+            {
+                Debug.LogWarning("Ignoring unexpected transition to node 0 from node " + _currentNodeId + ".");
+            }
 
+            return;
+        }
+
+        _pendingNodeId = destination.id;
         SceneManager.LoadScene(destination.sceneName, LoadSceneMode.Single);
     }
 
@@ -334,19 +340,6 @@ public class LevelRunManager : MonoBehaviour
         else
         {
             SyncCurrentNodeToLoadedScene(scene.name);
-        }
-
-        if (_regenerateOnNextLobbyLoad && SceneNameEquals(scene.name, LobbySceneName))
-        {
-            _regenerateOnNextLobbyLoad = false;
-
-            if (_advanceFloorOnNextLobbyLoad)
-            {
-                _advanceFloorOnNextLobbyLoad = false;
-                _currentFloor = Mathf.Max(1, _currentFloor + 1);
-            }
-
-            GenerateNewRun();
         }
 
         EnsurePersistentPlayer(scene);
@@ -777,7 +770,7 @@ public class LevelRunManager : MonoBehaviour
     {
         if (destination.id == 0)
         {
-            return "Lobby";
+            return "Next Floor";
         }
 
         return "Floor " + GetFloorFromDepth(destination.depth) +
@@ -861,10 +854,37 @@ public class LevelRunManager : MonoBehaviour
         return destinations;
     }
 
-    private void ConnectLastRoomToLobby()
+    private void ConnectLastStageToFloorTransition()
     {
         GeneratedLevelNode finalRoom = _nodesById[GeneratedRoomCount];
         AddConnection(finalRoom, 0);
+    }
+
+    private void AdvanceToNextFloor()
+    {
+        _currentFloor = Mathf.Max(1, _currentFloor + 1);
+        GenerateNewRun();
+
+        if (!_nodesById.TryGetValue(1, out GeneratedLevelNode nextFloorStart))
+        {
+            Debug.LogError("Unable to start next floor because stage 1 node is missing.");
+            return;
+        }
+
+        if (!Application.CanStreamedLevelBeLoaded(nextFloorStart.sceneName))
+        {
+            Debug.LogError("Cannot load next-floor stage scene '" + nextFloorStart.sceneName + "'. Add it to Build Settings.");
+            return;
+        }
+
+        _pendingNodeId = nextFloorStart.id;
+
+        if (LogProgression)
+        {
+            Debug.Log("Advancing to Floor " + CurrentFloor + " starting at stage 1 (" + nextFloorStart.sceneName + ").");
+        }
+
+        SceneManager.LoadScene(nextFloorStart.sceneName, LoadSceneMode.Single);
     }
 
     private void AddConnection(GeneratedLevelNode source, int destinationNodeId)
@@ -1445,7 +1465,6 @@ public class LevelRunManager : MonoBehaviour
         ? _runtimeOverrides.fixedSeed
         : generationProfile != null ? generationProfile.FixedSeed : fixedSeed;
 
-    private bool RegenerateWhenReturningToLobby => generationProfile != null ? generationProfile.RegenerateWhenReturningToLobby : regenerateWhenReturningToLobby;
     private bool LockDoorsWhileRoomActive => generationProfile != null ? generationProfile.LockDoorsWhileRoomActive : lockDoorsWhileRoomActive;
     private bool AutoBindSceneDoors => generationProfile != null ? generationProfile.AutoBindSceneDoors : autoBindSceneDoors;
     private bool AutoAdvanceWhenNoDoors => generationProfile != null ? generationProfile.AutoAdvanceWhenNoDoors : autoAdvanceWhenNoDoors;

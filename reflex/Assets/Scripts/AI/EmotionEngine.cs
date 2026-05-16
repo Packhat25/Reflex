@@ -150,6 +150,11 @@ public class EmotionEngine : MonoBehaviour
     [SerializeField, Min(0f)] private float additionalHitFalloff = 0.85f;
     [SerializeField, Min(0.2f)] private float maxEffectiveHitsPerAttack = 1.6f;
 
+    [Header("Progression Stability")]
+    [SerializeField] private bool rebaseTelemetryOnLevelEntered = true;
+    [SerializeField, Range(0f, 1f)] private float levelCarryoverFactor = 0.35f;
+    [SerializeField] private bool clearRoomStateOnLevelEntered = true;
+
     [Header("Debug")]
     [SerializeField] private bool createDebugHud = true;
 
@@ -239,8 +244,20 @@ public class EmotionEngine : MonoBehaviour
         }
     }
 
+    private void OnEnable()
+    {
+        LevelRunManager.LevelEntered += HandleLevelEntered;
+    }
+
+    private void OnDisable()
+    {
+        LevelRunManager.LevelEntered -= HandleLevelEntered;
+    }
+
     private void OnDestroy()
     {
+        LevelRunManager.LevelEntered -= HandleLevelEntered;
+
         if (_instance == this)
         {
             _instance = null;
@@ -895,6 +912,63 @@ public class EmotionEngine : MonoBehaviour
 
         float falloff = Mathf.Max(0f, additionalHitFalloff);
         return 1f / (1f + ((hitIndex - 1) * falloff));
+    }
+
+    private void HandleLevelEntered(int nodeId, int floorDepth, string sceneName)
+    {
+        if (floorDepth <= 0)
+        {
+            return;
+        }
+
+        if (clearRoomStateOnLevelEntered)
+        {
+            _activeRoomContributors.Clear();
+            _roomTimerRunning = false;
+            _currentRoomTime = 0f;
+            _currentRoomBaseSpawnCount = 0;
+            _currentRoomAdjustedSpawnCount = 0;
+            _currentRoomSpawnerCount = 0;
+            _lastRoomClearTime = 0f;
+        }
+
+        if (rebaseTelemetryOnLevelEntered)
+        {
+            RebaseTelemetry(levelCarryoverFactor);
+        }
+
+        EvaluateEmotion(true);
+
+        if (logEmotionChanges)
+        {
+            Debug.Log($"Emotion telemetry rebased for floor {floorDepth} ({sceneName}). Aggression: {AggressionScore:0.00}");
+        }
+    }
+
+    private void RebaseTelemetry(float carryover)
+    {
+        float factor = Mathf.Clamp01(carryover);
+
+        _damageTaken *= factor;
+        _deathCount = Mathf.RoundToInt(_deathCount * factor);
+        _attacksPerformed = Mathf.RoundToInt(_attacksPerformed * factor);
+        _enemyHits = Mathf.RoundToInt(_enemyHits * factor);
+        _effectiveEnemyHits *= factor;
+        _timeRunning *= factor;
+        _timeIdle *= factor;
+        _movementSpeedTotal *= factor;
+        _movementSamples = Mathf.RoundToInt(_movementSamples * factor);
+        _hitsInCurrentAttack = 0;
+        _effectiveHitsInCurrentAttack = 0f;
+        _lastAttackStartedTime = 0f;
+        _lastEnemyHitTime = 0f;
+        _lastCombatIntentTime = Time.time;
+        _lastEmotionEvaluationTime = Time.time;
+
+        if (factor < 1f)
+        {
+            _encounteredEnemyIds.Clear();
+        }
     }
 
     private EmotionProfileSnapshot BuildSnapshot()

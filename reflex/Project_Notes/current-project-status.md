@@ -11,7 +11,8 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Build scene order now boots through `Lobby` and includes boss/test scenes in Build Settings.
 - Default run profile now uses a fixed stage ladder into final boss.
 - Floor-loop logic is now active:
-  - Floor 1 stage 1-5 -> Lobby -> Floor 2 stage 1-5 -> ...
+  - Floor 1 stage 1-5 -> Floor 2 stage 1-5 -> ...
+- Lobby is now a one-time entry only (initial start), not a per-floor return hub.
 - Stage order is now randomized per floor (with boss pinned as the final stage when available).
 - Added a floor-specific debug HUD with auto-docking against the existing emotion debug HUD.
 - Repaired broken default generation profile asset serialization (resolved merge-marker corruption).
@@ -32,9 +33,10 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Emotion hit scoring now mitigates stacked multi-hit aggression spikes via effective-hit diminishing returns.
 - Emotion aggression tempo now uses slower rise / faster fall with passive calm decay after short combat inactivity.
 - Aggression state now uses a more forgiving threshold/weight profile with passive-disengage bias to avoid passive play being misclassified as aggressive.
+- Emotion telemetry now rebases on combat floor entry with stale-room cleanup to keep updates reliable across progression.
 
 ## Active Priorities
-- Playtest full path: Lobby -> L1 -> L2 -> L3 -> L4 -> L5 -> Boss -> Lobby.
+- Playtest full path: Lobby (start only) -> Floor 1 stage chain -> Floor 2 stage chain (no lobby return).
 - Validate that each new floor generates a different stage order and still ends with boss.
 - Validate debug HUD readability and placement on multiple editor game-view resolutions.
 - Validate that directional fallback exits in Lobby remain readable and reachable.
@@ -64,6 +66,10 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
   - `hitIntentScale`
   - `passiveRecoveryBoost`
   - `passiveForgivenessBias`
+- Tune progression stability fields:
+  - `rebaseTelemetryOnLevelEntered`
+  - `levelCarryoverFactor`
+  - `clearRoomStateOnLevelEntered`
 
 ## Remaining Tasks
 - Decide whether to keep `Final Boss Level` as stage 5 each floor or introduce a separate standard stage 5 scene.

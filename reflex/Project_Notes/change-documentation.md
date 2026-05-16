@@ -1,3 +1,26 @@
+## 2026-05-17 - One-Time Lobby Entry (No Lobby Between Floors)
+
+### Summary
+Updated progression flow so Lobby is only used at game start. After a floor is completed, the run now advances directly into the next floor's stage 1 without returning to Lobby.
+
+### Files Affected
+- Assets/Scripts/LevelGeneration/LevelRunManager.cs
+
+### Systems Affected
+- Floor transition flow
+- Generated run graph destination labeling
+
+### Gameplay Changes
+- Final stage transition no longer loads Lobby.
+- Floor completion now increments floor immediately and loads next floor stage 1 scene directly.
+- Node `0` transitions from final stages are now interpreted as a `Next Floor` transition marker.
+- Door label for node `0` destination now displays `Next Floor` instead of `Lobby`.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing warning remains unrelated:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
 ## 2026-05-17 - Floor Debug HUD + Auto Docking
 
 ### Summary
@@ -410,3 +433,34 @@ Rebalanced emotion thresholds and tempo to make aggression significantly more fo
 
 ### Known Limitations
 - Requires in-editor playtest to calibrate final feel around specific weapon cadence and room layouts.
+
+## 2026-05-17 - Floor Transition Stability Fix (Emotion Engine)
+
+### Summary
+Added progression-stability safeguards so emotion telemetry does not saturate or stall across floors and continues updating reliably after floor transitions.
+
+### Files Affected
+- Assets/Scripts/AI/EmotionEngine.cs
+
+### Gameplay Changes
+- Emotion engine now listens for floor entry (`LevelRunManager.LevelEntered`).
+- On combat floor entry:
+  - optionally clears stale active room/spawner state
+  - optionally rebases telemetry with configurable carryover factor
+  - forces an immediate emotion evaluation to keep HUD/director state fresh
+- Added tunables:
+  - `rebaseTelemetryOnLevelEntered`
+  - `levelCarryoverFactor`
+  - `clearRoomStateOnLevelEntered`
+
+### Design Notes
+- Prevents lifetime metric saturation from making aggression appear frozen at higher floors.
+- Keeps room state consistent when moving between scenes/floors.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Needs in-editor multi-floor verification to confirm behavior under all room/spawner combinations.
