@@ -68,11 +68,14 @@ public class EnemyController : MonoBehaviour
 
     void Start()
     {
-        attackDamage = EnemyStatData.attackDamage;
+        float floorHealthMultiplier = LevelRunManager.HasInstance ? LevelRunManager.Instance.CurrentFloorEnemyHealthMultiplier : 1f;
+        float floorDamageMultiplier = LevelRunManager.HasInstance ? LevelRunManager.Instance.CurrentFloorEnemyDamageMultiplier : 1f;
+
         _homePosition = transform.position; // Remember where we started
-        currentHealth = EnemyStatData.maxHealth;
+        maxHealth = EnemyStatData.maxHealth * floorHealthMultiplier;
+        currentHealth = maxHealth;
         speed = EnemyStatData.speed;
-        attackDamage = EnemyStatData.attackDamage;
+        attackDamage = EnemyStatData.attackDamage * floorDamageMultiplier;
         attackCooldown = EnemyStatData.attackCooldown;
         enemyHitbox.SetActive(false); // Ensure hitbox starts disabled
         PrintCurrentState();

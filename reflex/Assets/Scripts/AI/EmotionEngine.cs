@@ -105,19 +105,23 @@ public class EmotionEngine : MonoBehaviour
 
     [Header("Emotion State")]
     [SerializeField] private PlayerEmotionState startingEmotion = PlayerEmotionState.Calm;
-    [SerializeField, Range(0f, 1f)] private float aggressiveThreshold = 0.58f;
-    [SerializeField, Range(0f, 1f)] private float calmThreshold = 0.42f;
+    [SerializeField, Range(0f, 1f)] private float aggressiveThreshold = 0.64f;
+    [SerializeField, Range(0f, 1f)] private float calmThreshold = 0.46f;
     [SerializeField, Range(0f, 1f)] private float scoreSmoothing = 0.35f;
-    [SerializeField, Range(0f, 1f)] private float aggressionRiseSmoothing = 0.2f;
+    [SerializeField, Range(0f, 1f)] private float aggressionRiseSmoothing = 0.14f;
     [SerializeField, Range(0f, 1f)] private float aggressionFallSmoothing = 0.55f;
     [SerializeField] private float evaluationInterval = 1f;
     [SerializeField] private bool logEmotionChanges = true;
 
     [Header("Aggression Tempo")]
-    [SerializeField, Min(0f)] private float calmDecayDelay = 0.9f;
-    [SerializeField, Range(0f, 0.25f)] private float calmDecayPerSecond = 0.07f;
-    [SerializeField, Range(0.1f, 1f)] private float attackIntentScale = 0.75f;
-    [SerializeField, Range(0.1f, 1f)] private float hitIntentScale = 0.7f;
+    [SerializeField, Min(0f)] private float calmDecayDelay = 0.55f;
+    [SerializeField, Range(0f, 0.25f)] private float calmDecayPerSecond = 0.11f;
+    [SerializeField, Range(0.1f, 1f)] private float attackIntentScale = 0.58f;
+    [SerializeField, Range(0.1f, 1f)] private float hitIntentScale = 0.52f;
+
+    [Header("Forgiveness Tuning")]
+    [SerializeField, Range(0f, 1f)] private float passiveRecoveryBoost = 0.5f;
+    [SerializeField, Range(0f, 0.25f)] private float passiveForgivenessBias = 0.09f;
 
     [Header("Expected Values")]
     [SerializeField] private float expectedDamageTaken = 50f;
@@ -128,13 +132,13 @@ public class EmotionEngine : MonoBehaviour
     [SerializeField] private float expectedDeaths = 2f;
 
     [Header("Recent Behavior Tuning")]
-    [SerializeField, Range(0f, 1f)] private float recentBehaviorWeight = 0.6f;
+    [SerializeField, Range(0f, 1f)] private float recentBehaviorWeight = 0.75f;
     [SerializeField] private float expectedRoomDamageTaken = 20f;
     [SerializeField] private float expectedRoomEnemyEncounters = 4f;
     [SerializeField] private float expectedRoomAttacks = 10f;
     [SerializeField] private float expectedRoomMovementSpeed = 4f;
     [SerializeField] private float expectedRoomDeaths = 1f;
-    [SerializeField] private float minimumEvidenceForChange = 0.25f;
+    [SerializeField] private float minimumEvidenceForChange = 0.38f;
 
     [Header("Adaptive Spawning")]
     [SerializeField] private float aggressiveSpawnMultiplier = 1.35f;
@@ -647,7 +651,16 @@ public class EmotionEngine : MonoBehaviour
 
         Confidence = CalculateConfidence(recentSnapshot);
         float effectiveRecentWeight = recentBehaviorWeight * Confidence;
-        return Mathf.Clamp01(Mathf.Lerp(lifetimeScore, RecentAggressionScore, effectiveRecentWeight));
+
+        if (RecentAggressionScore < lifetimeScore)
+        {
+            float recoveryDelta = lifetimeScore - RecentAggressionScore;
+            effectiveRecentWeight = Mathf.Clamp01(effectiveRecentWeight + (recoveryDelta * passiveRecoveryBoost));
+        }
+
+        float blendedScore = Mathf.Lerp(lifetimeScore, RecentAggressionScore, effectiveRecentWeight);
+        blendedScore -= CalculatePassiveForgivenessBias(recentSnapshot);
+        return Mathf.Clamp01(blendedScore);
     }
 
     private float CalculateWeightedScore(
@@ -828,6 +841,24 @@ public class EmotionEngine : MonoBehaviour
 
         float decayAmount = calmDecayPerSecond * elapsedSinceLastEvaluation;
         return Mathf.Clamp01(targetScore - decayAmount);
+    }
+
+    private float CalculatePassiveForgivenessBias(EmotionProfileSnapshot recentSnapshot)
+    {
+        if (passiveForgivenessBias <= 0f)
+        {
+            return 0f;
+        }
+
+        float disengageTime = Mathf.Max(0f, Time.time - _lastCombatIntentTime);
+        float disengageFactor = Mathf.InverseLerp(calmDecayDelay, calmDecayDelay + 4f, disengageTime);
+
+        float pressureFactor = Mathf.Clamp01(
+            (SafeRatio(recentSnapshot.damageTaken, expectedRoomDamageTaken) * 0.65f) +
+            (SafeRatio(recentSnapshot.deathCount, Mathf.Max(1f, expectedRoomDeaths)) * 0.35f));
+
+        float lowPressureFactor = 1f - pressureFactor;
+        return passiveForgivenessBias * disengageFactor * lowPressureFactor;
     }
 
     private float CalculateEffectiveHitContribution()

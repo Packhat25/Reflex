@@ -49,15 +49,29 @@ public class LevelRunManager : MonoBehaviour
         "Level_2_Scene",
         "Level_3_Scene",
         "Level_4_Scene",
+        "Final Boss Level",
     };
+    [SerializeField] private bool useSequentialFallbackRoomOrder = true;
+    [SerializeField] private bool randomizeStageOrderEachFloor = true;
+    [SerializeField] private bool keepBossStageAtEnd = true;
 
     [Header("Generated Run")]
-    [SerializeField, Min(1)] private int generatedRoomCount = 8;
+    [SerializeField, Min(1)] private int generatedRoomCount = 5;
     [SerializeField, Min(1)] private int minDoorChoices = 1;
     [SerializeField, Min(1)] private int maxDoorChoices = 3;
     [SerializeField, Min(1)] private int maxForwardRoomSkip = 3;
     [SerializeField] private int fixedSeed;
     [SerializeField] private bool regenerateWhenReturningToLobby = true;
+
+    [Header("Floor Loop")]
+    [SerializeField, Min(1)] private int startingFloor = 1;
+
+    [Header("Floor Difficulty")]
+    [SerializeField, Min(0f)] private float enemyHealthPerFloorStep = 0.18f;
+    [SerializeField, Min(0f)] private float enemyDamagePerFloorStep = 0.12f;
+    [SerializeField, Min(0f)] private float spawnCountPerFloorStep = 0.08f;
+    [SerializeField, Min(0f)] private float respawnDelayReductionPerFloorStep = 0.05f;
+    [SerializeField, Min(0.1f)] private float minimumRespawnDelayFloorMultiplier = 0.45f;
 
     [Header("Door Rules")]
     [SerializeField] private bool lockDoorsWhileRoomActive = true;
@@ -82,6 +96,8 @@ public class LevelRunManager : MonoBehaviour
     private int _deepestDepthReached;
     private int _activeSeed;
     private bool _regenerateOnNextLobbyLoad;
+    private bool _advanceFloorOnNextLobbyLoad;
+    private int _currentFloor = 1;
     private PlayerManager _persistentPlayer;
 
     public static bool HasInstance
@@ -124,6 +140,29 @@ public class LevelRunManager : MonoBehaviour
         get { return _activeSeed; }
     }
 
+    public int CurrentFloor
+    {
+        get { return Mathf.Max(1, _currentFloor); }
+    }
+
+    public int StagesPerFloor
+    {
+        get { return GeneratedRoomCount; }
+    }
+
+    public int CurrentStage
+    {
+        get
+        {
+            if (!_nodesById.TryGetValue(_currentNodeId, out GeneratedLevelNode node) || node.id == 0)
+            {
+                return 0;
+            }
+
+            return GetStageFromDepth(node.depth);
+        }
+    }
+
     public int CurrentLevelDepth
     {
         get
@@ -142,6 +181,18 @@ public class LevelRunManager : MonoBehaviour
         get { return _clearedNodeIds.Contains(_currentNodeId); }
     }
 
+    public float CurrentFloorEnemyHealthMultiplier => 1f + Mathf.Max(0, CurrentFloor - 1) * enemyHealthPerFloorStep;
+    public float CurrentFloorEnemyDamageMultiplier => 1f + Mathf.Max(0, CurrentFloor - 1) * enemyDamagePerFloorStep;
+    public float CurrentFloorSpawnMultiplier => 1f + Mathf.Max(0, CurrentFloor - 1) * spawnCountPerFloorStep;
+    public float CurrentFloorRespawnDelayMultiplier
+    {
+        get
+        {
+            float reduction = Mathf.Max(0, CurrentFloor - 1) * respawnDelayReductionPerFloorStep;
+            return Mathf.Max(minimumRespawnDelayFloorMultiplier, 1f - reduction);
+        }
+    }
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void Bootstrap()
     {
@@ -158,6 +209,7 @@ public class LevelRunManager : MonoBehaviour
 
         _instance = this;
         DontDestroyOnLoad(gameObject);
+        _currentFloor = Mathf.Max(1, startingFloor);
         LoadDefaultProfileIfNeeded();
         GenerateNewRun();
         SceneManager.sceneLoaded += HandleSceneLoaded;
@@ -204,10 +256,24 @@ public class LevelRunManager : MonoBehaviour
         _clearedNodeIds.Add(lobbyNode.id);
 
         string previousScene = LobbySceneName;
-        for (int depth = 1; depth <= GeneratedRoomCount; depth++)
+        List<string> stageSceneOrder = randomizeStageOrderEachFloor
+            ? BuildStageSceneOrder(random, GeneratedRoomCount, previousScene)
+            : null;
+
+        for (int stage = 1; stage <= GeneratedRoomCount; stage++)
         {
-            string sceneName = PickRoomScene(random, previousScene, depth, roomUseCounts);
-            GeneratedLevelNode node = CreateNode(depth, depth, sceneName);
+            string sceneName;
+            if (stageSceneOrder != null && stageSceneOrder.Count >= stage)
+            {
+                sceneName = stageSceneOrder[stage - 1];
+            }
+            else
+            {
+                sceneName = PickRoomScene(random, previousScene, stage, roomUseCounts);
+            }
+
+            int floorDepth = ComposeFloorDepth(CurrentFloor, stage);
+            GeneratedLevelNode node = CreateNode(stage, floorDepth, sceneName);
             _nodesById.Add(node.id, node);
             IncrementRoomUseCount(roomUseCounts, sceneName);
             previousScene = sceneName;
@@ -245,7 +311,9 @@ public class LevelRunManager : MonoBehaviour
         }
 
         bool returningToLobby = destination.id == 0 && _currentNodeId != 0;
+        bool completedFloor = returningToLobby && _currentNodeId == GeneratedRoomCount;
         _pendingNodeId = destination.id;
+        _advanceFloorOnNextLobbyLoad = completedFloor;
         _regenerateOnNextLobbyLoad = RegenerateWhenReturningToLobby && returningToLobby;
 
         SceneManager.LoadScene(destination.sceneName, LoadSceneMode.Single);
@@ -271,6 +339,13 @@ public class LevelRunManager : MonoBehaviour
         if (_regenerateOnNextLobbyLoad && SceneNameEquals(scene.name, LobbySceneName))
         {
             _regenerateOnNextLobbyLoad = false;
+
+            if (_advanceFloorOnNextLobbyLoad)
+            {
+                _advanceFloorOnNextLobbyLoad = false;
+                _currentFloor = Mathf.Max(1, _currentFloor + 1);
+            }
+
             GenerateNewRun();
         }
 
@@ -568,7 +643,16 @@ public class LevelRunManager : MonoBehaviour
 
         if (LogProgression)
         {
-            Debug.Log("Level cleared: node " + node.id + " depth " + node.depth + " (" + node.sceneName + ") because " + reason + ".");
+            if (node.id == 0)
+            {
+                Debug.Log("Lobby node marked clear because " + reason + ".");
+            }
+            else
+            {
+                Debug.Log("Level cleared: floor " + GetFloorFromDepth(node.depth) +
+                          " stage " + GetStageFromDepth(node.depth) +
+                          " (" + node.sceneName + ") because " + reason + ".");
+            }
         }
 
         List<LevelDoor> doors = LevelDoorAutoBinder.FindOrCreateDoors();
@@ -614,7 +698,16 @@ public class LevelRunManager : MonoBehaviour
 
         if (LogProgression)
         {
-            Debug.Log("Level entered: node " + node.id + " depth " + node.depth + " (" + node.sceneName + "). Cleared: " + IsCurrentNodeCleared);
+            if (node.id == 0)
+            {
+                Debug.Log("Entered Lobby. Current floor: " + CurrentFloor + ".");
+            }
+            else
+            {
+                Debug.Log("Level entered: floor " + GetFloorFromDepth(node.depth) +
+                          " stage " + GetStageFromDepth(node.depth) +
+                          " (" + node.sceneName + "). Cleared: " + IsCurrentNodeCleared);
+            }
         }
     }
 
@@ -687,7 +780,8 @@ public class LevelRunManager : MonoBehaviour
             return "Lobby";
         }
 
-        return "Room " + destination.depth + " - " + destination.sceneName;
+        return "Floor " + GetFloorFromDepth(destination.depth) +
+               " - Stage " + GetStageFromDepth(destination.depth);
     }
 
     private void SyncCurrentNodeToLoadedScene(string sceneName)
@@ -812,11 +906,151 @@ public class LevelRunManager : MonoBehaviour
         }
     }
 
+    private List<string> BuildStageSceneOrder(System.Random random, int stageCount, string previousScene)
+    {
+        List<string> orderedScenes = new List<string>();
+        if (stageCount <= 0)
+        {
+            return orderedScenes;
+        }
+
+        List<string> nonBossScenes = new List<string>();
+        List<string> bossScenes = new List<string>();
+        PopulateStageScenePools(nonBossScenes, bossScenes);
+
+        if (nonBossScenes.Count == 0 && bossScenes.Count == 0)
+        {
+            return orderedScenes;
+        }
+
+        int nonBossStageCount = keepBossStageAtEnd && bossScenes.Count > 0
+            ? Mathf.Max(0, stageCount - 1)
+            : stageCount;
+
+        string lastScene = previousScene;
+        List<string> primaryPool = nonBossScenes.Count > 0 ? nonBossScenes : bossScenes;
+
+        for (int stageIndex = 0; stageIndex < nonBossStageCount; stageIndex++)
+        {
+            string sceneName = PickRandomSceneFromPool(random, primaryPool, lastScene);
+            orderedScenes.Add(sceneName);
+            lastScene = sceneName;
+        }
+
+        if (keepBossStageAtEnd && bossScenes.Count > 0 && orderedScenes.Count < stageCount)
+        {
+            string bossScene = bossScenes[random.Next(bossScenes.Count)];
+            orderedScenes.Add(bossScene);
+            lastScene = bossScene;
+        }
+
+        while (orderedScenes.Count < stageCount)
+        {
+            string sceneName = PickRandomSceneFromPool(random, primaryPool, lastScene);
+            orderedScenes.Add(sceneName);
+            lastScene = sceneName;
+        }
+
+        return orderedScenes;
+    }
+
+    private void PopulateStageScenePools(List<string> nonBossScenes, List<string> bossScenes)
+    {
+        if (nonBossScenes == null || bossScenes == null)
+        {
+            return;
+        }
+
+        if (generationProfile != null && generationProfile.RoomScenes != null)
+        {
+            for (int i = 0; i < generationProfile.RoomScenes.Length; i++)
+            {
+                LevelSceneCandidate candidate = generationProfile.RoomScenes[i];
+                if (candidate == null || string.IsNullOrWhiteSpace(candidate.SceneName))
+                {
+                    continue;
+                }
+
+                if (candidate.RoomKind == LevelRoomKind.Boss)
+                {
+                    AddUniqueScene(bossScenes, candidate.SceneName);
+                }
+                else
+                {
+                    AddUniqueScene(nonBossScenes, candidate.SceneName);
+                }
+            }
+        }
+
+        if (nonBossScenes.Count > 0 || bossScenes.Count > 0)
+        {
+            return;
+        }
+
+        for (int i = 0; i < roomSceneNames.Length; i++)
+        {
+            string sceneName = roomSceneNames[i];
+            if (string.IsNullOrWhiteSpace(sceneName))
+            {
+                continue;
+            }
+
+            if (SceneNameEquals(sceneName, "Final Boss Level"))
+            {
+                AddUniqueScene(bossScenes, sceneName);
+            }
+            else
+            {
+                AddUniqueScene(nonBossScenes, sceneName);
+            }
+        }
+    }
+
+    private string PickRandomSceneFromPool(System.Random random, List<string> pool, string previousScene)
+    {
+        if (pool == null || pool.Count == 0)
+        {
+            return LobbySceneName;
+        }
+
+        if (pool.Count == 1)
+        {
+            return pool[0];
+        }
+
+        List<int> candidateIndices = new List<int>();
+        for (int i = 0; i < pool.Count; i++)
+        {
+            if (!SceneNameEquals(pool[i], previousScene))
+            {
+                candidateIndices.Add(i);
+            }
+        }
+
+        if (candidateIndices.Count == 0)
+        {
+            return pool[random.Next(pool.Count)];
+        }
+
+        int randomIndex = candidateIndices[random.Next(candidateIndices.Count)];
+        return pool[randomIndex];
+    }
+
     private string PickRoomScene(System.Random random, string previousScene, int depth, Dictionary<string, int> roomUseCounts)
     {
         if (TryPickProfileRoomScene(random, previousScene, depth, roomUseCounts, out string profileSceneName))
         {
             return profileSceneName;
+        }
+
+        if (useSequentialFallbackRoomOrder && roomSceneNames.Length > 0)
+        {
+            int fallbackIndex = Mathf.Clamp(depth - 1, 0, roomSceneNames.Length - 1);
+            string fallbackScene = roomSceneNames[fallbackIndex];
+            if (!string.IsNullOrWhiteSpace(fallbackScene))
+            {
+                return fallbackScene;
+            }
         }
 
         List<string> validRooms = new List<string>();
@@ -997,7 +1231,7 @@ public class LevelRunManager : MonoBehaviour
     private string BuildGraphLog()
     {
         StringBuilder builder = new StringBuilder();
-        builder.AppendLine("Generated level run seed: " + _activeSeed);
+        builder.AppendLine("Generated level run floor: " + CurrentFloor + " seed: " + _activeSeed);
 
         for (int i = 0; i <= GeneratedRoomCount; i++)
         {
@@ -1041,6 +1275,51 @@ public class LevelRunManager : MonoBehaviour
     private bool SceneNameEquals(string left, string right)
     {
         return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void AddUniqueScene(List<string> sceneNames, string sceneName)
+    {
+        if (sceneNames == null || string.IsNullOrWhiteSpace(sceneName))
+        {
+            return;
+        }
+
+        for (int i = 0; i < sceneNames.Count; i++)
+        {
+            if (SceneNameEquals(sceneNames[i], sceneName))
+            {
+                return;
+            }
+        }
+
+        sceneNames.Add(sceneName);
+    }
+
+    private int ComposeFloorDepth(int floor, int stage)
+    {
+        int clampedFloor = Mathf.Max(1, floor);
+        int clampedStage = Mathf.Clamp(stage, 0, GeneratedRoomCount);
+        return ((clampedFloor - 1) * GeneratedRoomCount) + clampedStage;
+    }
+
+    private int GetFloorFromDepth(int depth)
+    {
+        if (depth <= 0)
+        {
+            return CurrentFloor;
+        }
+
+        return ((depth - 1) / GeneratedRoomCount) + 1;
+    }
+
+    private int GetStageFromDepth(int depth)
+    {
+        if (depth <= 0)
+        {
+            return 0;
+        }
+
+        return ((depth - 1) % GeneratedRoomCount) + 1;
     }
 
     private void TryAutoAdvanceWithoutDoors(GeneratedLevelNode node, int availableDoorCount, string reason)

@@ -59,6 +59,7 @@ Assets/
   EnemyController.cs
   EnemyHitbox.cs
   EnemyHurtbox.cs
+  FloorDebugHUD.cs
   IEnemyState.cs
   States/
    AttackState.cs

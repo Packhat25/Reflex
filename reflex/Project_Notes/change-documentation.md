@@ -1,3 +1,108 @@
+## 2026-05-17 - Floor Debug HUD + Auto Docking
+
+### Summary
+Added a dedicated floor debug HUD that displays the current floor and stage, and auto-docks to avoid overlap when another debug HUD is visible.
+
+### Files Affected
+- Assets/Scripts/AI/FloorDebugHUD.cs
+- Assets/Scripts/AI/FloorDebugHUD.cs.meta
+- Assets/Scripts/AI/EmotionDebugHUD.cs
+
+### Systems Affected
+- Runtime debug UI overlays
+- Floor progression visibility and QA observability
+
+### Gameplay/UI Changes
+- Added `FloorDebugHUD` (toggle key: `F5`) with:
+  - Current floor
+  - Current stage / stages per floor
+  - Floor difficulty multipliers (HP, damage, spawn, respawn)
+- Added auto-docking behavior:
+  - If `EmotionDebugHUD` is visible, floor HUD docks to the right when possible, otherwise below.
+  - Final position is clamped to screen bounds.
+- Added screen-size-aware scaling for readability across resolutions.
+- Exposed visible-area information from `EmotionDebugHUD` so other debug overlays can position relative to it.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing warning remains unrelated:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+## 2026-05-17 - Randomized Stage Order Per Floor
+
+### Summary
+Updated floor progression so stage order randomizes every floor instead of always following a fixed scene sequence.
+
+### Files Affected
+- Assets/Scripts/LevelGeneration/LevelRunManager.cs
+
+### Systems Affected
+- Floor run generation and per-floor scene ordering
+
+### Gameplay Changes
+- Enabled per-floor stage-order randomization.
+- Each new floor now gets a fresh shuffled stage sequence.
+- Boss scenes are still pinned to the final stage of each floor when available, preserving a strong floor climax.
+- Added profile-aware scene pooling for randomized generation:
+  - Non-boss and boss scene candidates are derived from `LevelGenerationProfile.RoomScenes`.
+  - Falls back to `roomSceneNames` if profile candidates are unavailable.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing warning remains unrelated:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+## 2026-05-17 - Floor Loop Progression (Stage 1-5 per Floor)
+
+### Summary
+Implemented floor-based progression where each floor runs through stages 1-5, then returns to Lobby and advances to the next floor. Added floor-scaled enemy difficulty so higher floors are harder.
+
+### Files Affected
+- Assets/Scripts/LevelGeneration/LevelRunManager.cs
+- Assets/Scripts/AI/States/SpawnControl/EnemySpawner.cs
+- Assets/Scripts/AI/EnemyController.cs
+- Assets/Scripts/Interactables/RewardManager.cs
+- Assets/Resources/LevelGeneration/Default Level Generation Profile.asset
+
+### Scenes Affected
+- Assets/Scenes/Lobby.unity
+- Assets/Scenes/Level_1_Scene.unity
+- Assets/Scenes/Level_2_Scene.unity
+- Assets/Scenes/Level_3_Scene.unity
+- Assets/Scenes/Level_4_Scene.unity
+- Assets/Scenes/Final Boss Level.unity
+
+### Systems Affected
+- Run generation and scene progression
+- Floor/stage labeling and reward context mapping
+- Enemy spawn pressure scaling
+- Enemy stat scaling
+
+### Gameplay Changes
+- Run path now executes as stage ladder per floor:
+  - Stage 1: `Level_1_Scene`
+  - Stage 2: `Level_2_Scene`
+  - Stage 3: `Level_3_Scene`
+  - Stage 4: `Level_4_Scene`
+  - Stage 5: `Final Boss Level`
+- After clearing stage 5 and returning to Lobby, floor increments (`Floor 1 -> Floor 2 -> Floor 3 ...`) and a new floor run is generated.
+- Difficulty increases with floor:
+  - Enemy health scales up per floor.
+  - Enemy damage scales up per floor.
+  - Spawn counts scale up per floor.
+  - Respawn delay scales down per floor (with minimum clamp).
+- Door destination labels now display `Floor X - Stage Y`.
+- Fallback scene order is now deterministic (sequential) if profile scene candidates are unavailable.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing warning remains unrelated:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Runtime playtesting is still required for balance tuning of higher-floor scaling values.
+- Floor progression currently resets when a fresh session starts (no cross-session persistence yet).
+
 ## 2026-05-17 - Room_2 Removal and Flow Repair
 
 ### Summary
@@ -266,3 +371,42 @@ Adjusted emotion tempo so aggression climbs less abruptly from isolated attack e
 
 ### Known Limitations
 - Final values still need in-editor feel validation against different weapons and room densities.
+
+## 2026-05-17 - Forgiving Aggression Rebalance
+
+### Summary
+Rebalanced emotion thresholds and tempo to make aggression significantly more forgiving for passive/disengage play patterns.
+
+### Files Affected
+- Assets/Scripts/AI/EmotionEngine.cs
+
+### Gameplay Changes
+- Raised aggressive entry threshold and widened hysteresis:
+  - `aggressiveThreshold`: `0.58 -> 0.64`
+  - `calmThreshold`: `0.42 -> 0.46`
+- Reduced upward response intensity:
+  - `aggressionRiseSmoothing`: `0.20 -> 0.14`
+  - `attackIntentScale`: `0.75 -> 0.58`
+  - `hitIntentScale`: `0.70 -> 0.52`
+- Increased cooldown/recovery behavior:
+  - `calmDecayDelay`: `0.90 -> 0.55`
+  - `calmDecayPerSecond`: `0.07 -> 0.11`
+  - `recentBehaviorWeight`: `0.60 -> 0.75`
+- Added explicit passive forgiveness model:
+  - `passiveRecoveryBoost`
+  - `passiveForgivenessBias`
+  - Recovery now prioritizes recent calm behavior when recent score drops below lifetime score.
+- Raised transition evidence requirement:
+  - `minimumEvidenceForChange`: `0.25 -> 0.38`
+
+### Design Notes
+- Intent is to prevent “one hit + disengage” loops from drifting aggressive unless pressure is sustained.
+- Aggressive state should now represent sustained combat intent, not brief interactions.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Requires in-editor playtest to calibrate final feel around specific weapon cadence and room layouts.

@@ -119,12 +119,18 @@ public class EnemySpawner : MonoBehaviour
 
     private int GetEmotionAdjustedSpawnCount()
     {
+        int baseCount;
         if (!useEmotionSpawnCount)
         {
-            return spawnCount;
+            baseCount = spawnCount;
+        }
+        else
+        {
+            baseCount = EmotionDirector.Instance.GetRecommendedSpawnCount(spawnCount);
         }
 
-        return EmotionDirector.Instance.GetRecommendedSpawnCount(spawnCount);
+        float floorMultiplier = LevelRunManager.HasInstance ? LevelRunManager.Instance.CurrentFloorSpawnMultiplier : 1f;
+        return Mathf.Max(1, Mathf.CeilToInt(baseCount * floorMultiplier));
     }
 
     private float GetEmotionAdjustedRespawnDelay()
@@ -149,7 +155,8 @@ public class EnemySpawner : MonoBehaviour
                 : calmRespawnDelayMultiplier;
         }
 
-        return Mathf.Max(minimumRespawnDelay, respawnDelay * multiplier);
+        float floorMultiplier = LevelRunManager.HasInstance ? LevelRunManager.Instance.CurrentFloorRespawnDelayMultiplier : 1f;
+        return Mathf.Max(minimumRespawnDelay, respawnDelay * multiplier * floorMultiplier);
     }
 
     private void OnDisable()

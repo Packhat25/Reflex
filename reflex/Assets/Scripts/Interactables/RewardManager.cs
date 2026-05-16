@@ -252,8 +252,14 @@ public class RewardManager : MonoBehaviour
 
     private LevelRewardContext BuildRewardContext(int nodeId, int floorDepth, string sceneName)
     {
-        int levelNumber = ((floorDepth - 1) / stagesPerLevel) + 1;
-        int stageNumber = ((floorDepth - 1) % stagesPerLevel) + 1;
+        int configuredStagesPerLevel = stagesPerLevel;
+        if (LevelRunManager.HasInstance)
+        {
+            configuredStagesPerLevel = Mathf.Max(1, LevelRunManager.Instance.StagesPerFloor);
+        }
+
+        int levelNumber = ((floorDepth - 1) / configuredStagesPerLevel) + 1;
+        int stageNumber = ((floorDepth - 1) % configuredStagesPerLevel) + 1;
         float levelMultiplier = 1f + ((levelNumber - 1) * levelRewardMultiplierStep);
         int rawEssence = baseEssencePerClear + (_killsThisLevel * essencePerKill) + (floorDepth * essencePerFloor);
         int essenceAwarded = Mathf.Max(0, Mathf.RoundToInt(rawEssence * levelMultiplier * GetPlayerEssenceMultiplier()));

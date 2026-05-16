@@ -7,6 +7,8 @@ public class EmotionDebugHUD : MonoBehaviour
     private const float Padding = 12f;
 
     private static EmotionDebugHUD _instance;
+    private static bool _hasVisibleArea;
+    private static Rect _visibleArea;
 
     [SerializeField] private bool visible = true;
     [SerializeField] private Key toggleKey = Key.F3;
@@ -65,6 +67,7 @@ public class EmotionDebugHUD : MonoBehaviour
     {
         if (!visible)
         {
+            _hasVisibleArea = false;
             return;
         }
 
@@ -78,6 +81,8 @@ public class EmotionDebugHUD : MonoBehaviour
         float width = fullscreen ? Screen.width - (Padding * 2f) : Mathf.Min(CompactWidth, Screen.width - (Padding * 2f));
         float height = Screen.height - (Padding * 2f);
         Rect area = new Rect(Padding, Padding, width, height);
+        _visibleArea = area;
+        _hasVisibleArea = true;
         GUILayout.BeginArea(area, GUIContent.none, _panelStyle);
         _scrollPosition = GUILayout.BeginScrollView(_scrollPosition);
 
@@ -142,6 +147,18 @@ public class EmotionDebugHUD : MonoBehaviour
         GUILayout.Label($"Press {toggleKey} to hide/show. Press {toggleFullscreenKey} for fullscreen.", _mutedStyle);
         GUILayout.EndScrollView();
         GUILayout.EndArea();
+    }
+
+    public static bool TryGetVisibleArea(out Rect area)
+    {
+        if (_hasVisibleArea)
+        {
+            area = _visibleArea;
+            return true;
+        }
+
+        area = default;
+        return false;
     }
 
     private void DrawLine(string text)
