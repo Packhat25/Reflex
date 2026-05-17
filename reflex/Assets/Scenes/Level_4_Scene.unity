@@ -2044,6 +2044,11 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 8810472396868538334, guid: fad53cc0c18dc7f4dafd9ea5ecf61540, type: 3}
   m_PrefabInstance: {fileID: 423653429}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &246573172 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 7405633566628788584, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
+  m_PrefabInstance: {fileID: 999998656}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &247663346 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 3138846644805708758, guid: e48e7c7c97b12e04a85267b3999861be, type: 3}
@@ -2768,6 +2773,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 7405633566628788584, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1182026560}
+    - targetCorrespondingSourceObject: {fileID: 7405633566628788584, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1182026561}
   m_SourcePrefab: {fileID: 100100000, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
 --- !u!1001 &374119030
 PrefabInstance:
@@ -4443,6 +4451,21 @@ MonoBehaviour:
   m_IgnoreFromBuild: 0
   m_ApplyToChildren: 1
   m_AffectedAgents: ffffffff
+--- !u!114 &578518208
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 578518205}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2f2a7fd4c41e4415a93f2f28f13d40df, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LevelDoorSlideSettings
+  doorLeftSlideDirection: {x: 0, y: 0, z: -1.21}
+  doorRightSlideDirection: {x: 0, y: 0, z: 1.21}
+  normalizeDirections: 1
 --- !u!1001 &580720331
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -6368,6 +6391,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 7405633566628788584, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1833803616}
+    - targetCorrespondingSourceObject: {fileID: 7405633566628788584, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1833803617}
   m_SourcePrefab: {fileID: 100100000, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
 --- !u!4 &845545632 stripped
 Transform:
@@ -7345,7 +7371,10 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 7405633566628788584, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2108008615}
   m_SourcePrefab: {fileID: 100100000, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
 --- !u!1 &1004312251
 GameObject:
@@ -8261,6 +8290,21 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &1182026561
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1182026558}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2f2a7fd4c41e4415a93f2f28f13d40df, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LevelDoorSlideSettings
+  doorLeftSlideDirection: {x: 0, y: 0, z: -1.21}
+  doorRightSlideDirection: {x: 0, y: 0, z: 1.21}
+  normalizeDirections: 1
 --- !u!4 &1182079256 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 3138846644805708758, guid: e48e7c7c97b12e04a85267b3999861be, type: 3}
@@ -10840,6 +10884,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 7405633566628788584, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
       insertIndex: -1
       addedObject: {fileID: 578518207}
+    - targetCorrespondingSourceObject: {fileID: 7405633566628788584, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 578518208}
   m_SourcePrefab: {fileID: 100100000, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
 --- !u!1001 &1523587158
 PrefabInstance:
@@ -13000,6 +13047,21 @@ MonoBehaviour:
   m_IgnoreFromBuild: 0
   m_ApplyToChildren: 1
   m_AffectedAgents: ffffffff
+--- !u!114 &1833803617
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1102449607}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2f2a7fd4c41e4415a93f2f28f13d40df, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LevelDoorSlideSettings
+  doorLeftSlideDirection: {x: 0, y: 0, z: -1.21}
+  doorRightSlideDirection: {x: 0, y: 0, z: 1.21}
+  normalizeDirections: 1
 --- !u!1 &1833847833
 GameObject:
   m_ObjectHideFlags: 0
@@ -58718,6 +58780,21 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 7894186523454497746, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
   m_PrefabInstance: {fileID: 999998656}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &2108008615
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 246573172}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2f2a7fd4c41e4415a93f2f28f13d40df, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LevelDoorSlideSettings
+  doorLeftSlideDirection: {x: 0, y: 0, z: -1.21}
+  doorRightSlideDirection: {x: 0, y: 0, z: 1.21}
+  normalizeDirections: 1
 --- !u!4 &2110633007 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 7687935911736248096, guid: ec4d38b766870944b87ea1e036394ac4, type: 3}

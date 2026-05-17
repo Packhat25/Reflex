@@ -71,6 +71,7 @@ public class RewardManager : MonoBehaviour
     [SerializeField] private float fadeInDuration = 0.5f;
     [SerializeField] private float fadeOutDuration = 0.5f;
     [SerializeField] private bool openCardRewardsOnLevelClear = true;
+    [SerializeField] private bool requireBuffChoiceBeforeDoorUnlock = true;
     [SerializeField] private StageCardRewardTriggerMode stageCardRewardTrigger = StageCardRewardTriggerMode.AnyStageClear;
 
     [Header("Card Pool")]
@@ -96,8 +97,10 @@ public class RewardManager : MonoBehaviour
     public event Action<LevelRewardContext> LevelRewardGranted;
 
     public static RewardManager Instance => _instance;
+    public static bool HasInstance => _instance != null;
 
     public LevelRewardContext LastRewardContext { get; private set; }
+    public bool IsAwaitingBuffChoiceForDoorUnlock => _awaitingBuffChoiceForDoorUnlock;
 
     private sealed class ActiveCardBuff
     {
@@ -124,6 +127,7 @@ public class RewardManager : MonoBehaviour
     private readonly List<BuffCardData> _runtimeGeneratedCards = new List<BuffCardData>();
     private Coroutine _fadeInCoroutine;
     private Coroutine _fadeOutCoroutine;
+    private bool _awaitingBuffChoiceForDoorUnlock;
     private PlayerManager _subscribedPlayerManager;
     private bool _runSummaryInitialized;
     private float _runStartRealtime;
@@ -226,22 +230,22 @@ public class RewardManager : MonoBehaviour
         }
     }
 
-    public void OpenRewardScreen()
+    public bool OpenRewardScreen()
     {
-        OpenRewardScreen(false);
+        return OpenRewardScreen(false);
     }
 
-    private void OpenRewardScreen(bool calmClear)
+    private bool OpenRewardScreen(bool calmClear)
     {
         if (_rewardScreenOpen)
         {
-            return;
+            return true;
         }
 
         if (!EnsureRewardUIAndCardPoolReady())
         {
             Debug.LogWarning("RewardManager could not open reward UI because no UI/card pool is available.");
-            return;
+            return false;
         }
 
         EnsureEventSystem();
@@ -252,14 +256,14 @@ public class RewardManager : MonoBehaviour
 
         if (choiceCapacity <= 0)
         {
-            return;
+            return false;
         }
 
         List<BuffCardData> choices = BuildWeightedCardChoices(choiceCapacity, calmClear);
         if (choices.Count <= 0)
         {
             Debug.LogWarning("RewardManager skipped reward UI because no buff cards were available.");
-            return;
+            return false;
         }
 
         _rewardScreenOpen = true;
@@ -279,7 +283,7 @@ public class RewardManager : MonoBehaviour
         if (_usingRuntimeRewardUI)
         {
             AssignRuntimeChoices(choices);
-            return;
+            return true;
         }
 
         // assign each card to a socket
@@ -291,6 +295,8 @@ public class RewardManager : MonoBehaviour
                 cardUI[i].Setup(choice);
             }
         }
+
+        return true;
     }
 
     private IEnumerator FadeInUI()
@@ -378,11 +384,13 @@ public class RewardManager : MonoBehaviour
 
         ReapplyActiveCardBuffsToPlayer();
 
+        _awaitingBuffChoiceForDoorUnlock = false;
         StartFadeOut();
     }
 
     private void HandleLevelEntered(int nodeId, int floorDepth, string sceneName)
     {
+        _awaitingBuffChoiceForDoorUnlock = false;
         _killsThisLevel = 0;
         EnsurePlayerManager();
         BindPlayerEvents();
@@ -425,6 +433,7 @@ public class RewardManager : MonoBehaviour
 
         bool calmClear = clearContext.hasRoomReport && clearContext.roomReport.emotionAfter == PlayerEmotionState.Calm;
         bool shouldGrantReward = ShouldGrantStageCardReward(clearContext, calmClear);
+        bool rewardScreenOpened = false;
 
         if (shouldGrantReward)
         {
@@ -442,11 +451,16 @@ public class RewardManager : MonoBehaviour
 
             LevelRewardGranted?.Invoke(context);
 
-            if (openCardRewardsOnLevelClear)
+            if (openCardRewardsOnLevelClear || requireBuffChoiceBeforeDoorUnlock)
             {
-                OpenRewardScreen(calmClear);
+                rewardScreenOpened = OpenRewardScreen(calmClear);
             }
         }
+
+        _awaitingBuffChoiceForDoorUnlock =
+            requireBuffChoiceBeforeDoorUnlock &&
+            shouldGrantReward &&
+            rewardScreenOpened;
 
         ConsumeStageLimitedCardDurations();
     }
@@ -1126,6 +1140,7 @@ public class RewardManager : MonoBehaviour
 
     private void ResetRunStateForFreshStart()
     {
+        _awaitingBuffChoiceForDoorUnlock = false;
         _activeCardBuffs.Clear();
         _selectedSpecialCards.Clear();
         _blockedCards.Clear();
@@ -1341,6 +1356,7 @@ public class RewardManager : MonoBehaviour
 
         Time.timeScale = 1f;
         _rewardScreenOpen = false;
+        _awaitingBuffChoiceForDoorUnlock = false;
     }
 
     private void HandleSceneUnloaded(Scene scene)

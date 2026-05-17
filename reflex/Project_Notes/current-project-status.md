@@ -18,6 +18,12 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Repaired broken default generation profile asset serialization (resolved merge-marker corruption).
 - Door auto-binding now supports directional fallback naming used by non-door scene layouts.
 - Single-route nodes now bind all discovered exits to the same destination for clearer traversal.
+- Door visuals now support animated leaf opening via `door_left` / `door_right` with per-instance axis-aware sliding.
+- Entry-side doors are now blocked on non-lobby room entry to prevent immediate re-entry/backtracking through the same side.
+- Door slide direction can now be overridden per door via `LevelDoorSlideSettings` component vectors for left/right leaf movement.
+- Combat rooms now activate exactly one random exit door per scene entry (entry-side door excluded when possible).
+- Post-clear doors now stay locked until buff selection is completed.
+- Back-to-back door parents (`Door W` / `Door S`, including `Doors W` / `Doors S`) are now treated as linked groups and open together when selected.
 - No-door auto-advance fallback now prevents dead-end progression in scenes without explicit door candidates.
 - Floor difficulty scaling now applies to enemy health, enemy damage, spawn count, and respawn delay.
 - Emotion engine records and scores player behavior using live and recent room signals.
@@ -46,6 +52,10 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Validate that each new floor generates a different stage order and still ends with boss.
 - Validate debug HUD readability and placement on multiple editor game-view resolutions.
 - Validate that directional fallback exits in Lobby remain readable and reachable.
+- Validate entry-door lock selection per scene (including double-door sides) to ensure the intended incoming side is blocked.
+- Validate single-random-door selection across full floor traversal to ensure route readability and no dead-end cases.
+- Validate linked back-to-back parents open together and never split-route across the pair.
+- Validate post-clear flow: clear room -> choose buff -> door unlock.
 - Validate gameplay feel in Unity Play Mode across multiple rooms.
 - Validate stage-duration expiration behavior for short-duration cards (for example Berserker Tempo).
 - Validate special-card contradiction filtering and one-time pick constraints across long runs.

@@ -1,3 +1,181 @@
+## 2026-05-17 - Linked Back-to-Back Door Groups (Door W / Door S)
+
+### Summary
+Updated single-random-door selection so back-to-back doors under the same `Door W` / `Door S` parent are treated as one logical door choice and open together.
+
+### Files Affected
+- Assets/Scripts/LevelGeneration/LevelRunManager.cs
+
+### Systems Affected
+- Random door-route assignment
+- Linked door-group selection behavior
+
+### Gameplay Changes
+- Single-door random selection now groups doors by parent for linked back-to-back setups:
+  - `Door S`
+  - `Door W`
+  - `Doors S`
+  - `Doors W`
+- If any door in one of these parents is selected, all doors in that same parent receive the same generated route and open together.
+- Entry-side exclusion still applies at group level:
+  - Groups containing blocked entry doors are excluded when possible.
+  - Fallback keeps progression possible if all groups are blocked candidates.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+## 2026-05-17 - Single Random Exit Door + Buff-Choice Door Gate
+
+### Summary
+Updated progression door flow so only one exit door is active per combat stage, chosen randomly each room entry, while avoiding the entry-side door when possible. Doors now remain locked after clear until a buff card is chosen.
+
+### Files Affected
+- Assets/Scripts/LevelGeneration/LevelRunManager.cs
+- Assets/Scripts/Interactables/RewardManager.cs
+- Assets/Scripts/LevelGeneration/LevelDoor.cs
+
+### Systems Affected
+- Door route binding and entry-door exclusion behavior
+- Stage clear reward gating and door unlock timing
+
+### Gameplay Changes
+- Added single-door activation mode for generated door routes:
+  - Only one door receives a route per scene entry.
+  - The active door is selected randomly from available doors.
+  - The destination route is selected randomly from current generated node connections.
+- Entry-side exclusion:
+  - Entry-side door group is still identified from player spawn proximity.
+  - Random active door selection excludes that blocked entry-side group when possible.
+  - Safe fallback keeps progression possible if no non-entry candidate exists.
+- Buff choice gate for door unlocking:
+  - Added `RewardManager.IsAwaitingBuffChoiceForDoorUnlock`.
+  - `LevelRunManager.AreDoorsUnlocked` now requires pending buff choice to be completed (non-lobby nodes).
+  - Reward manager now tracks pending buff choice after clear and clears it on card selection / safety-close paths.
+- Door prompt now reports buff gate explicitly (`Choose a buff first`) while waiting for card selection.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- If reward UI/card pool cannot open after clear, the pending-buff lock is not applied to avoid hard-locking progression.
+
+## 2026-05-17 - Per-Door Slide Direction Component
+
+### Summary
+Added a dedicated door slide settings component so each door can explicitly define how `door_left` and `door_right` panels slide.
+
+### Files Affected
+- Assets/Scripts/LevelGeneration/LevelDoor.cs
+- Assets/Scripts/LevelGeneration/LevelDoorSlideSettings.cs
+- Assets/Scripts/LevelGeneration/LevelDoorSlideSettings.cs.meta
+
+### Systems Affected
+- Door animation direction configuration
+- Door leaf open-position calculation
+
+### Gameplay Changes
+- Added `LevelDoorSlideSettings` component (Inspector-editable) with:
+  - `doorLeftSlideDirection` (local-space vector)
+  - `doorRightSlideDirection` (local-space vector)
+  - `normalizeDirections`
+- `LevelDoor` now reads slide directions from `LevelDoorSlideSettings` when present.
+- `LevelDoor` now auto-attaches `LevelDoorSlideSettings` at runtime when missing.
+- Default slide directions remain `left` for `door_left` and `right` for `door_right`.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+## 2026-05-17 - Deterministic Left/Right Sliding Direction
+
+### Summary
+Adjusted sliding-door animation to use explicit name-based direction: `door_left` always slides left and `door_right` always slides right in local door space.
+
+### Files Affected
+- Assets/Scripts/LevelGeneration/LevelDoor.cs
+
+### Systems Affected
+- Door panel open-direction logic
+
+### Gameplay Changes
+- Removed pair-axis inference and fallback axis guessing for split-door motion.
+- Door leaves now open with deterministic local-axis behavior:
+  - `door_left`: `Vector3.left * openOffset`
+  - `door_right`: `Vector3.right * openOffset`
+- This ensures a consistent split-slide animation for the prefab behavior you requested.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+## 2026-05-17 - Sliding Door Split Fix (Left/Right Separation)
+
+### Summary
+Fixed door panel animation so sliding doors split correctly: `door_left` and `door_right` now separate away from each other as a pair instead of using per-panel axis guessing.
+
+### Files Affected
+- Assets/Scripts/LevelGeneration/LevelDoor.cs
+
+### Systems Affected
+- Door leaf animation targeting and open direction resolution
+
+### Gameplay Changes
+- Door leaves are now paired (`door_left` with nearest `door_right`) and opened in opposite directions along the pair axis.
+- Pair axis is derived from left-right local position delta (x/z dominant axis), which prevents incorrect forward/backward panel drift on certain prefab orientations.
+- Added fallback behavior for unmatched leaves to keep single-panel edge cases functional.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Final per-scene feel still requires in-editor Play Mode verification for offset/speed tuning.
+
+## 2026-05-17 - Contextual Door Opening + Entry Door Lockout
+
+### Summary
+Implemented contextual door animation and traversal rules so doors now open based on scene context and the entry-side door is blocked after entering a combat level.
+
+### Files Affected
+- Assets/Scripts/LevelGeneration/LevelDoor.cs
+- Assets/Scripts/LevelGeneration/LevelRunManager.cs
+
+### Systems Affected
+- Door interaction prompts and traversal gating
+- Door leaf animation (FBX child parts `door_left` / `door_right`)
+- Scene-entry progression guardrails
+
+### Gameplay Changes
+- Added animated sliding behavior for door leaf meshes:
+  - Automatically finds all `door_left` and `door_right` children under each bound `LevelDoor`.
+  - Captures closed local positions and animates to open positions using configurable offset (`1.21` default).
+  - Auto-selects slide axis per leaf (`x` or `z`) based on local layout to support rotated door placements.
+  - Supports multi-door/double-door setups by animating all matching leaves under each door root.
+- Lobby behavior:
+  - Doors now open when the player gets near (proximity-driven open state).
+- Combat level behavior:
+  - Doors stay closed until normal unlock conditions are met (room clear / unlocked state).
+- Entry door lockout:
+  - On non-lobby room entry, the nearest routed door to the spawn/entry position is marked blocked for re-entry.
+  - Nearby sibling doors within a small grouping radius are also blocked to handle double-door entry sides.
+  - Safeguard prevents blocking every routed door in a room.
+  - Blocked doors show `Cannot go back through this door` and ignore interaction.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Final animation feel and entry-door grouping radius still need in-editor Play Mode tuning per scene layout.
+
 ## 2026-05-17 - Equipped Weapon Persistence Without Manual Weapon Lists
 
 ### Summary

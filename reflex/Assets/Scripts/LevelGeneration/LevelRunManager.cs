@@ -97,6 +97,8 @@ public class LevelRunManager : MonoBehaviour
     [SerializeField] private bool lockDoorsWhileRoomActive = true;
     [SerializeField] private bool autoBindSceneDoors = true;
     [SerializeField] private bool autoAdvanceWhenNoDoors = true;
+    [SerializeField] private bool useSingleRandomOpenDoor = true;
+    [SerializeField, Min(0f)] private float entryDoorGroupRadius = 2.25f;
 
     [Header("Progression")]
     [SerializeField] private bool unlockCurrentLevelAfterClear = true;
@@ -148,10 +150,23 @@ public class LevelRunManager : MonoBehaviour
     {
         get
         {
-            return !LockDoorsWhileRoomActive ||
-                   IsCurrentNodeCleared ||
-                   !EmotionEngine.HasInstance ||
-                   !EmotionEngine.Instance.IsRoomActive;
+            bool baseDoorUnlock = !LockDoorsWhileRoomActive ||
+                                  IsCurrentNodeCleared ||
+                                  !EmotionEngine.HasInstance ||
+                                  !EmotionEngine.Instance.IsRoomActive;
+
+            if (!baseDoorUnlock)
+            {
+                return false;
+            }
+
+            if (_currentNodeId == 0)
+            {
+                return true;
+            }
+
+            return !RewardManager.HasInstance ||
+                   !RewardManager.Instance.IsAwaitingBuffChoiceForDoorUnlock;
         }
     }
 
@@ -199,6 +214,12 @@ public class LevelRunManager : MonoBehaviour
     public bool IsCurrentNodeCleared
     {
         get { return _clearedNodeIds.Contains(_currentNodeId); }
+    }
+
+    public bool TryGetPersistentPlayerTransform(out Transform playerTransform)
+    {
+        playerTransform = _persistentPlayer != null ? _persistentPlayer.transform : null;
+        return playerTransform != null;
     }
 
     public LevelClearContext LastClearContext { get; private set; }
@@ -760,37 +781,308 @@ public class LevelRunManager : MonoBehaviour
             return;
         }
 
-        for (int i = 0; i < doors.Count; i++)
+        HashSet<LevelDoor> blockedEntryDoors = ApplyEntryDoorLock(doors, currentNode);
+
+        int routedDoorCount = 0;
+        if (useSingleRandomOpenDoor)
         {
-            if (currentNode.connections.Count == 1)
+            ConfigureSingleRandomDoor(doors, currentNode, blockedEntryDoors, out routedDoorCount);
+        }
+        else
+        {
+            for (int i = 0; i < doors.Count; i++)
             {
-                doors[i].Configure(BuildDoorRoute(currentNode.connections[0]));
-            }
-            else if (i < currentNode.connections.Count)
-            {
-                doors[i].Configure(BuildDoorRoute(currentNode.connections[i]));
-            }
-            else
-            {
-                doors[i].ClearRoute(i);
+                if (currentNode.connections.Count == 1)
+                {
+                    doors[i].Configure(BuildDoorRoute(currentNode.connections[0]));
+                    routedDoorCount = 1;
+                }
+                else if (i < currentNode.connections.Count)
+                {
+                    doors[i].Configure(BuildDoorRoute(currentNode.connections[i]));
+                    routedDoorCount++;
+                }
+                else
+                {
+                    doors[i].ClearRoute(i);
+                }
             }
         }
 
         if (LogDoorBinding && doors.Count > 0)
         {
-            Debug.Log("Bound " + Mathf.Min(doors.Count, currentNode.connections.Count) +
+            Debug.Log("Bound " + routedDoorCount +
                       " generated door route(s) in " + sceneName + " from node " + currentNode.id + ".");
         }
 
-        TryAutoAdvanceWithoutDoors(currentNode, doors.Count, "scene has no generated door candidates");
+        TryAutoAdvanceWithoutDoors(currentNode, routedDoorCount, "scene has no generated door candidates");
     }
 
     private void ClearDoors(List<LevelDoor> doors)
     {
         for (int i = 0; i < doors.Count; i++)
         {
+            doors[i].SetEntryBlocked(false);
             doors[i].ClearRoute(i);
         }
+    }
+
+    private HashSet<LevelDoor> ApplyEntryDoorLock(List<LevelDoor> doors, GeneratedLevelNode currentNode)
+    {
+        HashSet<LevelDoor> blockedDoors = new HashSet<LevelDoor>();
+
+        if (doors == null || doors.Count == 0)
+        {
+            return blockedDoors;
+        }
+
+        for (int i = 0; i < doors.Count; i++)
+        {
+            if (doors[i] != null)
+            {
+                doors[i].SetEntryBlocked(false);
+            }
+        }
+
+        // Entry lock should only apply to non-lobby nodes and only when there's another way forward.
+        if (currentNode == null || currentNode.id == 0 || _persistentPlayer == null)
+        {
+            return blockedDoors;
+        }
+
+        List<LevelDoor> usableDoors = new List<LevelDoor>();
+        for (int i = 0; i < doors.Count; i++)
+        {
+            if (doors[i] != null)
+            {
+                usableDoors.Add(doors[i]);
+            }
+        }
+
+        if (usableDoors.Count <= 1)
+        {
+            return blockedDoors;
+        }
+
+        Vector3 playerPosition = _persistentPlayer.transform.position;
+        LevelDoor nearestDoor = null;
+        float nearestDoorSqrDistance = float.MaxValue;
+
+        for (int i = 0; i < usableDoors.Count; i++)
+        {
+            float sqrDistance = (usableDoors[i].transform.position - playerPosition).sqrMagnitude;
+            if (sqrDistance < nearestDoorSqrDistance)
+            {
+                nearestDoorSqrDistance = sqrDistance;
+                nearestDoor = usableDoors[i];
+            }
+        }
+
+        if (nearestDoor == null)
+        {
+            return blockedDoors;
+        }
+
+        float lockGroupRadius = Mathf.Max(0f, entryDoorGroupRadius);
+        float lockGroupRadiusSqr = lockGroupRadius * lockGroupRadius;
+        for (int i = 0; i < usableDoors.Count; i++)
+        {
+            LevelDoor door = usableDoors[i];
+            bool shouldBlock = door == nearestDoor;
+
+            if (!shouldBlock && lockGroupRadius > 0f)
+            {
+                float sqrDistanceToNearest = (door.transform.position - nearestDoor.transform.position).sqrMagnitude;
+                shouldBlock = sqrDistanceToNearest <= lockGroupRadiusSqr;
+            }
+
+            if (!shouldBlock)
+            {
+                continue;
+            }
+
+            blockedDoors.Add(door);
+        }
+
+        // Never block every routed door in a room.
+        if (blockedDoors.Count >= usableDoors.Count)
+        {
+            blockedDoors.Clear();
+            blockedDoors.Add(nearestDoor);
+        }
+
+        foreach (LevelDoor blockedDoor in blockedDoors)
+        {
+            if (blockedDoor != null)
+            {
+                blockedDoor.SetEntryBlocked(true);
+            }
+        }
+
+        if (LogDoorBinding)
+        {
+            Debug.Log("Blocked " + blockedDoors.Count + " entry door(s) in node " + currentNode.id + ".");
+        }
+
+        return blockedDoors;
+    }
+
+    private void ConfigureSingleRandomDoor(
+        List<LevelDoor> doors,
+        GeneratedLevelNode currentNode,
+        HashSet<LevelDoor> blockedEntryDoors,
+        out int routedDoorCount)
+    {
+        routedDoorCount = 0;
+
+        if (doors == null)
+        {
+            return;
+        }
+
+        if (doors.Count == 0 || currentNode == null || currentNode.connections.Count == 0)
+        {
+            for (int i = 0; i < doors.Count; i++)
+            {
+                if (doors[i] != null)
+                {
+                    doors[i].ClearRoute(i);
+                }
+            }
+
+            return;
+        }
+
+        Dictionary<string, List<LevelDoor>> doorGroups = new Dictionary<string, List<LevelDoor>>();
+        for (int i = 0; i < doors.Count; i++)
+        {
+            LevelDoor door = doors[i];
+            if (door == null)
+            {
+                continue;
+            }
+
+            string groupKey = GetRandomDoorSelectionGroupKey(door, i);
+            if (!doorGroups.TryGetValue(groupKey, out List<LevelDoor> groupDoors))
+            {
+                groupDoors = new List<LevelDoor>();
+                doorGroups[groupKey] = groupDoors;
+            }
+
+            groupDoors.Add(door);
+        }
+
+        if (doorGroups.Count == 0)
+        {
+            return;
+        }
+
+        List<string> selectableGroupKeys = new List<string>();
+        foreach (KeyValuePair<string, List<LevelDoor>> group in doorGroups)
+        {
+            bool groupContainsBlockedEntryDoor = false;
+            if (blockedEntryDoors != null)
+            {
+                for (int doorIndex = 0; doorIndex < group.Value.Count; doorIndex++)
+                {
+                    if (blockedEntryDoors.Contains(group.Value[doorIndex]))
+                    {
+                        groupContainsBlockedEntryDoor = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!groupContainsBlockedEntryDoor)
+            {
+                selectableGroupKeys.Add(group.Key);
+            }
+        }
+
+        if (selectableGroupKeys.Count == 0)
+        {
+            foreach (KeyValuePair<string, List<LevelDoor>> group in doorGroups)
+            {
+                selectableGroupKeys.Add(group.Key);
+            }
+        }
+
+        if (selectableGroupKeys.Count == 0)
+        {
+            return;
+        }
+
+        int selectedGroupIndex = UnityEngine.Random.Range(0, selectableGroupKeys.Count);
+        string selectedGroupKey = selectableGroupKeys[selectedGroupIndex];
+        List<LevelDoor> selectedGroupDoors = doorGroups[selectedGroupKey];
+        HashSet<LevelDoor> selectedDoorSet = new HashSet<LevelDoor>(selectedGroupDoors);
+
+        int selectedConnectionIndex = UnityEngine.Random.Range(0, currentNode.connections.Count);
+        LevelDoorRoute selectedRoute = BuildDoorRoute(currentNode.connections[selectedConnectionIndex]);
+
+        if (blockedEntryDoors != null)
+        {
+            foreach (LevelDoor selectedGroupDoor in selectedGroupDoors)
+            {
+                if (selectedGroupDoor != null && blockedEntryDoors.Contains(selectedGroupDoor))
+                {
+                    // Fallback when all groups were entry-side candidates: keep progression possible.
+                    selectedGroupDoor.SetEntryBlocked(false);
+                }
+            }
+        }
+
+        for (int i = 0; i < doors.Count; i++)
+        {
+            LevelDoor door = doors[i];
+            if (door == null)
+            {
+                continue;
+            }
+
+            if (selectedDoorSet.Contains(door))
+            {
+                door.Configure(selectedRoute);
+                routedDoorCount++;
+            }
+            else
+            {
+                door.ClearRoute(i);
+            }
+        }
+    }
+
+    private string GetRandomDoorSelectionGroupKey(LevelDoor door, int fallbackIndex)
+    {
+        if (door == null)
+        {
+            return "door-null-" + fallbackIndex;
+        }
+
+        Transform parent = door.transform.parent;
+        if (parent != null && IsLinkedPairDoorParentName(parent.name))
+        {
+            return "door-pair-parent-" + parent.GetInstanceID();
+        }
+
+        return "door-single-" + door.GetInstanceID();
+    }
+
+    private bool IsLinkedPairDoorParentName(string parentName)
+    {
+        string normalizedName = NormalizeName(parentName);
+        return IsLinkedPairDoorNameAlias(normalizedName, "door s") ||
+               IsLinkedPairDoorNameAlias(normalizedName, "door w") ||
+               IsLinkedPairDoorNameAlias(normalizedName, "doors s") ||
+               IsLinkedPairDoorNameAlias(normalizedName, "doors w");
+    }
+
+    private bool IsLinkedPairDoorNameAlias(string normalizedName, string alias)
+    {
+        return normalizedName == alias ||
+               normalizedName.StartsWith(alias + " ", StringComparison.Ordinal) ||
+               normalizedName.StartsWith(alias + "(", StringComparison.Ordinal) ||
+               normalizedName.StartsWith(alias + "_", StringComparison.Ordinal);
     }
 
     private LevelDoorRoute BuildDoorRoute(GeneratedLevelConnection connection)
@@ -1335,6 +1627,11 @@ public class LevelRunManager : MonoBehaviour
     private bool SceneNameEquals(string left, string right)
     {
         return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string NormalizeName(string value)
+    {
+        return string.IsNullOrEmpty(value) ? string.Empty : value.Trim().ToLowerInvariant();
     }
 
     private void AddUniqueScene(List<string> sceneNames, string sceneName)
