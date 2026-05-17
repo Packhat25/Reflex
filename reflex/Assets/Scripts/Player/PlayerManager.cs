@@ -6,6 +6,7 @@ using System.Collections.Generic;
 public class PlayerManager : MonoBehaviour
 {
     public event Action<int, int> SoulEssenceChanged;
+    public event Action<PlayerManager> PlayerDied;
 
     [Header("State Flags")]
     public bool isRunning = false;
@@ -45,6 +46,7 @@ public class PlayerManager : MonoBehaviour
     [Header("Runtime Health")]
     public float currentHealth;
     private float glassCannonHPModifier = 1f; // Used for the Glass Cannon card
+    private bool hasInitializedHealthUI;
 
 
     // --- ADDITIVE CALCULATIONS ---
@@ -72,10 +74,17 @@ public class PlayerManager : MonoBehaviour
 
     private void Start()
     {
+        if (SaveManager.Instance != null)
+        {
+            SaveManager.Instance.ApplyToPlayer(this);
+        }
+
         if (stats != null)
         {
             currentHealth = MaxHealth;
         }
+
+        TryInitializeHealthUI();
     }
 
     private void Update()
@@ -83,6 +92,7 @@ public class PlayerManager : MonoBehaviour
         CheckIfIdle();
         CheckIfAttacking();
         CheckComboTime();
+        TryInitializeHealthUI();
         //OnPause();
         if (InGameUIManager.Instance != null)
         {
@@ -134,6 +144,11 @@ public class PlayerManager : MonoBehaviour
     public void Heal(float amount)
     {
         currentHealth = Mathf.Min(currentHealth + amount, MaxHealth);
+
+        if (InGameUIManager.Instance != null)
+        {
+            InGameUIManager.Instance.UpdateHealth(currentHealth, MaxHealth);
+        }
     }
 
     public void AddSoulEssence(int amount)
@@ -144,7 +159,17 @@ public class PlayerManager : MonoBehaviour
             return;
         }
 
-        soulEssence += safeAmount;
+        if (SaveManager.Instance != null)
+        {
+            SaveManager.Instance.currentSave.soulEssence += safeAmount;
+            SaveManager.Instance.SaveGame();
+            soulEssence = SaveManager.Instance.currentSave.soulEssence;
+        }
+        else
+        {
+            soulEssence += safeAmount;
+        }
+
         SoulEssenceChanged?.Invoke(soulEssence, safeAmount);
     }
 
@@ -172,9 +197,15 @@ public class PlayerManager : MonoBehaviour
 
     private void Die()
     {
+        if (isDead)
+        {
+            return;
+        }
+
         isDead = true;
         canAttack = false;
         EmotionEngine.Instance.RecordDeath();
+        PlayerDied?.Invoke(this);
         Debug.Log("<color=red>Player is Dead</color>");
     }
 
@@ -213,5 +244,16 @@ public class PlayerManager : MonoBehaviour
         glassCannonHPModifier = 0.5f; // Halve health
         cardAtkBonus += 0.5f;        // Huge damage boost
         currentHealth = Mathf.Min(currentHealth, MaxHealth);
+    }
+
+    private void TryInitializeHealthUI()
+    {
+        if (hasInitializedHealthUI || InGameUIManager.Instance == null)
+        {
+            return;
+        }
+
+        InGameUIManager.Instance.SetHealthImmediate(currentHealth, MaxHealth);
+        hasInitializedHealthUI = true;
     }
 }
