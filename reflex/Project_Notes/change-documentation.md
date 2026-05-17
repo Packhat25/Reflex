@@ -641,3 +641,25 @@ Fixed a regression where reward cards could fail to appear after entering later 
 
 ### Known Limitations
 - Unity Play Mode verification is still required to confirm expected popup cadence across full multi-stage and multi-floor traversal.
+
+## 2026-05-17 - Weapon Equipped State Persistence
+
+### Summary
+Added persistence for the player's equipped weapon so it can be saved and reloaded across sessions.
+
+### Files Affected
+- Assets/Scripts/Combat/WeaponManager.cs
+
+### Systems Affected
+- Weapon Management
+- Save/Data Persistence (`SaveManager`)
+
+### Gameplay/UI Changes
+- When a new weapon is equipped via `WeaponManager.EquipWeapon()`, it automatically passes the `weaponName` to `SaveManager.Instance.SetEquippedWeapon()`.
+- Ensures that any manual weapon change correctly updates the active player save file during gameplay.
+
+### Build/Test
+- Tested via code inspection and `git diff`.
+
+### Known Limitations
+- Relies on `SaveManager` being instanced and properly implemented to handle file I/O operations.
