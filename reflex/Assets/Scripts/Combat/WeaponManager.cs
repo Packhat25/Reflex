@@ -260,7 +260,16 @@ public class WeaponManager : MonoBehaviour
 
     public void HitboxOff()
     {
-        hitboxVisual.SetActive(false);
+        if (hitboxVisual != null)
+        {
+            hitboxVisual.SetActive(false);
+        }
+
+        if (playerManager == null)
+        {
+            return;
+        }
+
         playerManager.canAttack = true;
 
         StartResetTime();
@@ -398,8 +407,22 @@ public class WeaponManager : MonoBehaviour
 
     public void StartResetTime()
     {
+        if (playerManager == null)
+        {
+            return;
+        }
+
+        WeaponData weaponData = playerManager.weaponData;
+        if (weaponData == null)
+        {
+            // If no weapon is equipped yet (or save data has not applied), keep combo state safe.
+            playerManager.comboTime = 0f;
+            playerManager.currentComboIndex = 0;
+            return;
+        }
+
         // Base Reset Time + Card Bonus
-        playerManager.comboTime = playerManager.weaponData.comboResetTime + playerManager.cardComboWindowBonus;
+        playerManager.comboTime = weaponData.comboResetTime + playerManager.cardComboWindowBonus;
     }
 
     private void OnDrawGizmos()

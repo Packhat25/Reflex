@@ -1,3 +1,28 @@
+## 2026-05-18 - Dash Cancel NullReference Fix (WeaponManager)
+
+### Summary
+Fixed a NullReferenceException when dashing while no weapon data is currently equipped or restored.
+
+### Files Affected
+- Assets/Scripts/Combat/WeaponManager.cs
+
+### Systems Affected
+- Combat combo timer reset flow
+- Dash cancel attack cleanup path
+
+### Gameplay Changes
+- `WeaponManager.HitboxOff()` now safely handles missing references before toggling attack state.
+- `WeaponManager.StartResetTime()` now guards against missing `playerManager` and missing `weaponData`.
+- When no weapon is equipped, combo state now safely resets instead of throwing a console error.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Unity Play Mode validation is still required to confirm full in-game behavior during early-load/no-weapon edge cases.
+
 ## 2026-05-17 - Floor-Scaled Enemy Wave Sequencing + Clear Gating
 
 ### Summary
@@ -1115,3 +1140,4 @@ Converted the upgrade station from runtime auto-spawn behavior to a scene-author
 
 ### Known Limitations
 - Interaction prompt rendering still depends on `PlayerInteraction.uiElement` scene wiring (existing Lobby player instance currently has it unassigned).
+
