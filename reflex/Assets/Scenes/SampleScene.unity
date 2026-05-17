@@ -5023,8 +5023,8 @@ MonoBehaviour:
   fadeInDuration: 0.1
   fadeOutDuration: 0
   openCardRewardsOnLevelClear: 1
+  requireBuffChoiceBeforeDoorUnlock: 1
   stageCardRewardTrigger: 0
-  clearPreviousStageCardOnNewSelection: 1
   allAvailableCards:
   - {fileID: 11400000, guid: fdb8a821a699d034eae6be501ec422db, type: 2}
   - {fileID: 11400000, guid: 2d1aba2703ee45e4bb1672054cc5452b, type: 2}
@@ -6477,7 +6477,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6838159156453297160, guid: a925df145e636eb44badd9ad5d83ef70, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6838159156453297160, guid: a925df145e636eb44badd9ad5d83ef70, type: 3}
       propertyPath: m_TagString
