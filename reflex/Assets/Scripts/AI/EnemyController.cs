@@ -30,6 +30,7 @@ public class EnemyController : MonoBehaviour
     public SpriteRenderer spriteRenderer;
     public UnityEngine.AI.NavMeshAgent agent;
     public GameObject enemyHitbox;
+    [HideInInspector] public Vector3 knockbackVelocity;
 
     [Header("Enemy Stats")]
     public EnemyData EnemyStatData; // The ScriptableObject blueprint
@@ -387,7 +388,7 @@ public class EnemyController : MonoBehaviour
     }
 
 
-    public void TakeDamage(float amount,float attackStunDuration)
+    public void TakeDamage(float amount, float attackStunDuration, Vector3 knockbackForce)
     {
         // Don't take further damage or change states if already dead
         Debug.Log($"<color=yellow> CurrentHP : {currentHealth}");
@@ -403,6 +404,8 @@ public class EnemyController : MonoBehaviour
         }
         else
         {
+            // Store the incoming knockback so HurtState can execute the physics
+            this.knockbackVelocity = knockbackForce;
             ChangeState(new HurtState(this, attackStunDuration));
         }
     }

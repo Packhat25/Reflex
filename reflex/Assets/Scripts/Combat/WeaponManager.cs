@@ -215,14 +215,22 @@ public class WeaponManager : MonoBehaviour
 
         foreach (Collider enemy in hitEnemies)
         {
-            // Apply finalDamage to enemy logic here...
             EnemyHurtbox enemyHurtbox = enemy.GetComponent<EnemyHurtbox>();
             if (enemyHurtbox != null)
             {
-                enemyHurtbox.ReceiveDamage(finalDamage, attackStunDuration);
+                // 1. Calculate the direction from player to enemy
+                Vector3 knockbackDirection = (enemy.transform.position - transform.position).normalized;
+                knockbackDirection.y = 0; // Keep it on a flat 2D plane
+
+                // 2. Multiply direction by your attack step's force configuration
+                float knockbackForce = step.attackKnockbackForce; // Ensure this field exists in AttackStep
+                Vector3 finalKnockbackVector = knockbackDirection * knockbackForce;
+
+                // 3. Pass it to the hurtbox (Update your ReceiveDamage signature to accept this)
+                enemyHurtbox.ReceiveDamage(finalDamage, attackStunDuration, finalKnockbackVector);
+                
                 EmotionEngine.Instance.RecordEnemyHit(finalDamage);
-                // Spawn hit spark effect at the hitbox's position with a random rotation for visual variety
-                // despawn after 1.5 seconds
+
                 if (hitSparkPrefab != null)
                 {
                     GameObject hitSpark = Instantiate(hitSparkPrefab, enemy.ClosestPoint(center), Quaternion.Euler(0, Random.Range(0, 360), 0));

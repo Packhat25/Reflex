@@ -10,6 +10,7 @@ public struct AttackStep
     public float attackStunDuration;
     public float dashInDistance; // New field for dash-in distance
     public float dashInVelocity; // New field for dash-in velocity
+    public float attackKnockbackForce; // New field for attack knockback force
     [Header("Camera Shake Settings")]
     public float cameraShakeIntensity; // New field for camera shake intensity
     public float cameraShakeDuration; // New field for camera shake duration

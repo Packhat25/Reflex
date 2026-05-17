@@ -7,7 +7,6 @@ public class EnemyHurtbox : MonoBehaviour
 
     private void Start()
     {
-        // Attempt to grab the controller from this object or its parents if unassigned
         if (enemyController == null)
         {
             enemyController = GetComponentInParent<EnemyController>();
@@ -17,11 +16,12 @@ public class EnemyHurtbox : MonoBehaviour
     /// <summary>
     /// Call this method from your player's weapon/attack script when it intersects with this collider.
     /// </summary>
-    public void ReceiveDamage(float damageAmount,float attackStunDuration)
+    public void ReceiveDamage(float damageAmount, float attackStunDuration, Vector3 knockbackForce)
     {
         if (enemyController != null)
         {
-            enemyController.TakeDamage(damageAmount,attackStunDuration);
+            // Successfully passing all 3 arguments over to the Controller
+            enemyController.TakeDamage(damageAmount, attackStunDuration, knockbackForce);
         }
         else
         {
