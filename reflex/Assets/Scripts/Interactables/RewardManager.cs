@@ -142,6 +142,7 @@ public class RewardManager : MonoBehaviour
     private int _runStageRewardEssenceTotal;
     private int _runComposureBonusEssenceTotal;
     private int _runTotalEssenceEarned;
+    private bool _spawnedByBootstrap;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void Bootstrap()
@@ -152,25 +153,42 @@ public class RewardManager : MonoBehaviour
         }
 
         GameObject rewardManagerObject = new GameObject("RewardManager");
-        rewardManagerObject.AddComponent<RewardManager>();
+        RewardManager manager = rewardManagerObject.AddComponent<RewardManager>();
+        manager._spawnedByBootstrap = true;
     }
 
     private void Awake()
     {
         if (_instance != null && _instance != this)
         {
-            int existingScore = _instance.GetConfigurationScore();
-            int currentScore = GetConfigurationScore();
+            bool existingIsBootstrap = _instance._spawnedByBootstrap;
+            bool currentIsBootstrap = _spawnedByBootstrap;
 
-            if (currentScore > existingScore)
+            if (existingIsBootstrap && !currentIsBootstrap)
             {
                 Destroy(_instance.gameObject);
                 _instance = this;
             }
-            else
+            else if (!existingIsBootstrap && currentIsBootstrap)
             {
                 Destroy(gameObject);
                 return;
+            }
+            else
+            {
+                int existingScore = _instance.GetConfigurationScore();
+                int currentScore = GetConfigurationScore();
+
+                if (currentScore > existingScore)
+                {
+                    Destroy(_instance.gameObject);
+                    _instance = this;
+                }
+                else
+                {
+                    Destroy(gameObject);
+                    return;
+                }
             }
         }
 

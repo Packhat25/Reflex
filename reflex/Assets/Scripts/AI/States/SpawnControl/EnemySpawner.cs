@@ -20,13 +20,26 @@ public class EnemySpawner : MonoBehaviour
     [Min(0f)] public float minimumRespawnDelay = 0.25f;
     public bool logEmotionSpawnRate = true;
 
+    [Header("Wave Sequencing")]
+    [SerializeField] private bool enableAdditionalWaves = true;
+    [SerializeField, Min(1)] private int maxWavesPerRoom = 3;
+    [SerializeField, Range(0f, 1f)] private float additionalWaveChanceFloorOne = 0.12f;
+    [SerializeField, Range(0f, 1f)] private float additionalWaveChancePerFloor = 0.06f;
+    [SerializeField, Range(0f, 1f)] private float maxAdditionalWaveChance = 0.75f;
+    [SerializeField] private bool logWaveRolls = true;
+
     private readonly List<GameObject> _currentEnemies = new List<GameObject>();
     private float _timer;
-    private bool _waveClearReported;
+    private bool _waveClearHandled;
     private bool _waitingForRoomToClear;
     private bool _hasSpawnedWave;
+    private bool _hasUpcomingWave;
+    private bool _roomClearReported;
+    private int _wavesSpawned;
 
     public bool HasSpawnedWave => _hasSpawnedWave;
+    public bool HasUpcomingWave => _hasUpcomingWave;
+    public int WavesSpawned => _wavesSpawned;
     public int AliveEnemyCount
     {
         get
@@ -47,11 +60,9 @@ public class EnemySpawner : MonoBehaviour
 
         if (_currentEnemies.Count == 0)
         {
-            if (!_waveClearReported)
+            if (!_waveClearHandled)
             {
-                EmotionEngine.Instance.RecordRoomCleared(this);
-                _waveClearReported = true;
-                _waitingForRoomToClear = true;
+                ResolveCurrentWaveEnd();
             }
 
             if (_waitingForRoomToClear)
@@ -62,18 +73,15 @@ public class EnemySpawner : MonoBehaviour
                 }
 
                 _waitingForRoomToClear = false;
-                _timer = GetEmotionAdjustedRespawnDelay();
-
-                if (logEmotionSpawnRate)
-                {
-                    Debug.Log($"<color=cyan>{name}: next wave in {_timer:0.00}s ({EmotionEngine.Instance.CurrentEmotion})</color>");
-                }
             }
 
-            _timer -= Time.deltaTime;
-            if (_timer <= 0f)
+            if (_hasUpcomingWave)
             {
-                SpawnWave();
+                _timer -= Time.deltaTime;
+                if (_timer <= 0f)
+                {
+                    SpawnWave();
+                }
             }
         }
     }
@@ -91,10 +99,13 @@ public class EnemySpawner : MonoBehaviour
 
     private void SpawnWave()
     {
+        _wavesSpawned++;
         _hasSpawnedWave = true;
         _currentEnemies.Clear();
-        _waveClearReported = false;
+        _waveClearHandled = false;
         _waitingForRoomToClear = false;
+        _hasUpcomingWave = false;
+        _roomClearReported = false;
 
         int adjustedSpawnCount = GetEmotionAdjustedSpawnCount();
         EmotionEngine.Instance.BeginRoom(this, spawnCount, adjustedSpawnCount);
@@ -115,6 +126,67 @@ public class EnemySpawner : MonoBehaviour
 
         _timer = GetEmotionAdjustedRespawnDelay();
         Debug.Log($"<color=green>SPAWNED WAVE OF {adjustedSpawnCount} ENEMIES ({EmotionDirector.Instance.CurrentDirective.strategy}); active spawners: {EmotionEngine.Instance.ActiveSpawnerCount}</color>");
+    }
+
+    private void ResolveCurrentWaveEnd()
+    {
+        _waveClearHandled = true;
+
+        if (TryScheduleAdditionalWave())
+        {
+            return;
+        }
+
+        EmotionEngine.Instance.RecordRoomCleared(this);
+        _roomClearReported = true;
+        _waitingForRoomToClear = true;
+    }
+
+    private bool TryScheduleAdditionalWave()
+    {
+        if (!enableAdditionalWaves)
+        {
+            return false;
+        }
+
+        int maxAllowedWaves = Mathf.Max(1, maxWavesPerRoom);
+        if (_wavesSpawned >= maxAllowedWaves)
+        {
+            return false;
+        }
+
+        float chance = GetAdditionalWaveChanceForCurrentFloor();
+        float roll = Random.value;
+        bool queueAnotherWave = roll < chance;
+
+        if (logWaveRolls)
+        {
+            int floor = LevelRunManager.HasInstance ? Mathf.Max(1, LevelRunManager.Instance.CurrentFloor) : 1;
+            string outcome = queueAnotherWave ? "queue next wave" : "end room";
+            Debug.Log($"<color=orange>{name}: wave {_wavesSpawned}/{maxAllowedWaves}, floor {floor}, roll {roll:0.00} vs chance {chance:0.00} -> {outcome}</color>");
+        }
+
+        if (!queueAnotherWave)
+        {
+            return false;
+        }
+
+        _hasUpcomingWave = true;
+        _timer = GetEmotionAdjustedRespawnDelay();
+
+        if (logEmotionSpawnRate)
+        {
+            Debug.Log($"<color=cyan>{name}: next wave in {_timer:0.00}s ({EmotionEngine.Instance.CurrentEmotion})</color>");
+        }
+
+        return true;
+    }
+
+    private float GetAdditionalWaveChanceForCurrentFloor()
+    {
+        int floor = LevelRunManager.HasInstance ? Mathf.Max(1, LevelRunManager.Instance.CurrentFloor) : 1;
+        float chance = additionalWaveChanceFloorOne + ((floor - 1) * additionalWaveChancePerFloor);
+        return Mathf.Clamp(chance, 0f, Mathf.Clamp01(maxAdditionalWaveChance));
     }
 
     private int GetEmotionAdjustedSpawnCount()
@@ -161,10 +233,10 @@ public class EnemySpawner : MonoBehaviour
 
     private void OnDisable()
     {
-        if (_hasSpawnedWave && !_waveClearReported && EmotionEngine.HasInstance)
+        if (_hasSpawnedWave && !_roomClearReported && EmotionEngine.HasInstance)
         {
             EmotionEngine.Instance.RecordRoomCleared(this);
-            _waveClearReported = true;
+            _roomClearReported = true;
         }
     }
 }

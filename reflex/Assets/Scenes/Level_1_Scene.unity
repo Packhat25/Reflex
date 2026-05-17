@@ -1742,7 +1742,7 @@ GameObject:
   m_Component:
   - component: {fileID: 54725299}
   m_Layer: 0
-  m_Name: Doors S
+  m_Name: Door S
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -21040,7 +21040,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7405633566628788584, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
       propertyPath: m_Name
-      value: Doors E
+      value: Door
       objectReference: {fileID: 0}
     - target: {fileID: 7405633566628788584, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
       propertyPath: m_StaticEditorFlags
@@ -23808,7 +23808,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7405633566628788584, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
       propertyPath: m_Name
-      value: Doorrs N
+      value: Door
       objectReference: {fileID: 0}
     - target: {fileID: 7405633566628788584, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
       propertyPath: m_StaticEditorFlags

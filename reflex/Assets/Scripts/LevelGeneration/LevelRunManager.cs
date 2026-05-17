@@ -64,7 +64,8 @@ public class LevelRunManager : MonoBehaviour
 
     [Header("Scene Pool")]
     [SerializeField] private string lobbySceneName = "Lobby";
-    [SerializeField] private string[] roomSceneNames =
+    [SerializeField]
+    private string[] roomSceneNames =
     {
         "Level_1_Scene",
         "Level_2_Scene",
@@ -87,9 +88,9 @@ public class LevelRunManager : MonoBehaviour
     [SerializeField, Min(1)] private int startingFloor = 1;
 
     [Header("Floor Difficulty")]
-    [SerializeField, Min(0f)] private float enemyHealthPerFloorStep = 0.18f;
-    [SerializeField, Min(0f)] private float enemyDamagePerFloorStep = 0.12f;
-    [SerializeField, Min(0f)] private float spawnCountPerFloorStep = 0.08f;
+    [SerializeField, Min(0f)] private float enemyHealthPerFloorStep = 0.50f;
+    [SerializeField, Min(0f)] private float enemyDamagePerFloorStep = 0.20f;
+    [SerializeField, Min(0f)] private float spawnCountPerFloorStep = 0.10f;
     [SerializeField, Min(0f)] private float respawnDelayReductionPerFloorStep = 0.05f;
     [SerializeField, Min(0.1f)] private float minimumRespawnDelayFloorMultiplier = 0.45f;
 
@@ -649,10 +650,41 @@ public class LevelRunManager : MonoBehaviour
         return false;
     }
 
+    private bool SceneHasUpcomingWaves(Scene scene)
+    {
+        EnemySpawner[] spawners = FindObjectsByType<EnemySpawner>(
+            FindObjectsInactive.Exclude,
+            FindObjectsSortMode.None);
+
+        for (int i = 0; i < spawners.Length; i++)
+        {
+            EnemySpawner spawner = spawners[i];
+            if (spawner != null &&
+                spawner.gameObject.scene == scene &&
+                spawner.HasUpcomingWave)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void HandleRoomEvaluated(EmotionRoomReport report)
     {
         if (!UnlockCurrentLevelAfterClear)
         {
+            return;
+        }
+
+        Scene activeScene = SceneManager.GetActiveScene();
+        if (SceneHasUpcomingWaves(activeScene))
+        {
+            if (LogProgression)
+            {
+                Debug.Log("Deferring level clear because a spawner has an upcoming wave queued.");
+            }
+
             return;
         }
 
@@ -1059,18 +1091,45 @@ public class LevelRunManager : MonoBehaviour
             return "door-null-" + fallbackIndex;
         }
 
-        Transform parent = door.transform.parent;
-        if (parent != null && IsLinkedPairDoorParentName(parent.name))
+        string linkedPairGroupKey = TryGetLinkedPairDoorGroupKey(door.transform);
+        if (!string.IsNullOrEmpty(linkedPairGroupKey))
         {
-            return "door-pair-parent-" + parent.GetInstanceID();
+            return linkedPairGroupKey;
         }
 
         return "door-single-" + door.GetInstanceID();
     }
 
-    private bool IsLinkedPairDoorParentName(string parentName)
+    private string TryGetLinkedPairDoorGroupKey(Transform doorTransform)
     {
-        string normalizedName = NormalizeName(parentName);
+        if (doorTransform == null)
+        {
+            return null;
+        }
+
+        string selfName = NormalizeName(doorTransform.name);
+        if (IsLinkedPairDoorObjectName(selfName))
+        {
+            Transform selfParent = doorTransform.parent;
+            if (selfParent != null)
+            {
+                // Sibling pair objects like "Door/Doors S" + "Door/Doors W" should count as one logical door.
+                return "door-pair-sibling-group-" + selfParent.GetInstanceID();
+            }
+        }
+
+        Transform parent = doorTransform.parent;
+        if (parent != null && IsLinkedPairDoorObjectName(NormalizeName(parent.name)))
+        {
+            return "door-pair-parent-group-" + parent.GetInstanceID();
+        }
+
+        return null;
+    }
+
+    private bool IsLinkedPairDoorObjectName(string objectName)
+    {
+        string normalizedName = NormalizeName(objectName);
         return IsLinkedPairDoorNameAlias(normalizedName, "door s") ||
                IsLinkedPairDoorNameAlias(normalizedName, "door w") ||
                IsLinkedPairDoorNameAlias(normalizedName, "doors s") ||

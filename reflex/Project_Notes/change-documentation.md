@@ -1,3 +1,98 @@
+## 2026-05-17 - Floor-Scaled Enemy Wave Sequencing + Clear Gating
+
+### Summary
+Added optional multi-wave combat in enemy rooms with floor-scaled extra-wave chance, and blocked room clear/reward progression while upcoming waves are queued.
+
+### Files Affected
+- Assets/Scripts/AI/States/SpawnControl/EnemySpawner.cs
+- Assets/Scripts/LevelGeneration/LevelRunManager.cs
+
+### Systems Affected
+- Enemy wave sequencing
+- Room clear evaluation flow
+- Buff-card reward timing
+
+### Gameplay Changes
+- Enemy spawners now roll for another wave after each wave is defeated.
+- Extra-wave chance starts low on floor 1 and increases with floor depth up to a cap.
+- `EnemySpawner` now tracks upcoming-wave state through `HasUpcomingWave`.
+- `LevelRunManager` now defers `RoomEvaluated` clear processing when any current-scene spawner has an upcoming wave queued.
+- Result: rooms only enter cleared state and trigger buff cards after the final wave is finished.
+
+### Tuning Fields
+- `enableAdditionalWaves`
+- `maxWavesPerRoom`
+- `additionalWaveChanceFloorOne`
+- `additionalWaveChancePerFloor`
+- `maxAdditionalWaveChance`
+- `respawnDelay` (existing spacing between waves)
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Unity Play Mode verification is still needed for multi-wave pacing and feel across full floor progression.
+
+## 2026-05-17 - Door Randomization Fix (Double-Door Bias Removal)
+
+### Summary
+Fixed door candidate discovery and random grouping so linked double doors count as one logical choice without dominating random exit selection.
+
+### Files Affected
+- Assets/Scripts/LevelGeneration/LevelDoorAutoBinder.cs
+- Assets/Scripts/LevelGeneration/LevelRunManager.cs
+
+### Systems Affected
+- Scene door candidate auto-discovery
+- Single-random-door grouping and selection
+
+### Gameplay Changes
+- Door auto-binder now combines directional door candidates with `Doors*` group candidates instead of preferring only one category.
+- Added shorthand directional support in name matching:
+  - `Walls N`, `Walls S`, `Walls E`, `Walls W`
+  - plus existing full-name directional aliases.
+- Added candidate filtering to avoid selecting broad parent containers (for example generic `Doors`) when child door candidates exist.
+- Updated random grouping so sibling pair objects named `Door/Doors S` and `Door/Doors W` under the same parent are treated as one logical door selection.
+- Result: double-door back-to-back setups still open together, but they no longer suppress other valid door options in random selection.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Final perceived randomness and route readability still require in-editor Play Mode validation per scene layout.
+
+## 2026-05-17 - Lobby RewardManager Priority Fix (Use Inspector Card Pool)
+
+### Summary
+Fixed RewardManager ownership resolution so a scene-authored manager (for example the Lobby instance with your 15 configured buff cards) always takes precedence over the runtime bootstrap fallback manager.
+
+### Files Affected
+- Assets/Scripts/Interactables/RewardManager.cs
+
+### Systems Affected
+- Reward manager singleton lifecycle
+- Card-pool source selection across scene boot and transition
+
+### Gameplay/UI Changes
+- Added bootstrap-origin tracking (`_spawnedByBootstrap`) on runtime-created RewardManager instances.
+- Updated singleton conflict resolution in `Awake()`:
+  - If existing instance is bootstrap and current is scene-authored, the scene-authored manager replaces it.
+  - If existing instance is scene-authored and current is bootstrap, bootstrap instance is destroyed.
+  - Score-based arbitration is still used when both instances are the same origin type.
+- This ensures manually assigned Lobby buff cards are preserved and used instead of fallback runtime card definitions.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Unity Play Mode verification is still required to confirm inspector card presentation end-to-end in your current scenes.
+
 ## 2026-05-17 - Linked Back-to-Back Door Groups (Door W / Door S)
 
 ### Summary

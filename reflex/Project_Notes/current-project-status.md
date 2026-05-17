@@ -24,6 +24,8 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Combat rooms now activate exactly one random exit door per scene entry (entry-side door excluded when possible).
 - Post-clear doors now stay locked until buff selection is completed.
 - Back-to-back door parents (`Door W` / `Door S`, including `Doors W` / `Doors S`) are now treated as linked groups and open together when selected.
+- Door auto-discovery now includes directional aliases like `Walls N/E/S/W` alongside `Doors*` groups, with container filtering to prevent double-door candidate bias.
+- Linked sibling pair objects (`Door/Doors S` + `Door/Doors W` under one parent) are now treated as one logical random-choice group.
 - No-door auto-advance fallback now prevents dead-end progression in scenes without explicit door candidates.
 - Floor difficulty scaling now applies to enemy health, enemy damage, spawn count, and respawn delay.
 - Emotion engine records and scores player behavior using live and recent room signals.
@@ -44,8 +46,11 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - HP bar startup sync now initializes both green/red fill correctly at lobby start when HP is full.
 - Buff cards now support run-persistent stacking with per-card stage duration (`buffDurationStages`).
 - Special buff cards now support one-pick-per-run locking and contradiction blocking (`blockedCards`), including Fleet foot vs Windrunner exclusivity.
+- RewardManager singleton ownership now prioritizes scene-authored instances over bootstrap fallback, so Lobby-configured inspector card pools are used reliably.
 - Added a temporary runtime game-over summary overlay with run metrics and soul-essence calculation breakdown on player death.
 - Equipped-weapon restore no longer requires manually maintaining `SaveManager.availableWeapons`; runtime weapon discovery now resolves saved weapon names automatically.
+- Enemy spawners now support floor-scaled additional wave sequencing with queued-wave tracking via `HasUpcomingWave`.
+- Room clear now defers while upcoming waves are queued, preventing premature stage clear and buff-card reward flow.
 
 ## Active Priorities
 - Playtest full path: Lobby (start only) -> Floor 1 stage chain -> Floor 2 stage chain (no lobby return).
@@ -65,6 +70,13 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
   - `enemyDamagePerFloorStep`
   - `spawnCountPerFloorStep`
   - `respawnDelayReductionPerFloorStep`
+- Tune wave sequencing fields:
+  - `enableAdditionalWaves`
+  - `maxWavesPerRoom`
+  - `additionalWaveChanceFloorOne`
+  - `additionalWaveChancePerFloor`
+  - `maxAdditionalWaveChance`
+  - `respawnDelay`
 - Tune blend fields:
   - `confidenceBlendFloor`
   - `profileUpdateLogBlendDelta`

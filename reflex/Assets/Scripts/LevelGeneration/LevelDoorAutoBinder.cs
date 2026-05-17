@@ -67,24 +67,35 @@ public static class LevelDoorAutoBinder
             {
                 singularDoors.Add(candidate);
             }
-            else if (IsDoorGroupName(normalizedName))
-            {
-                doorGroups.Add(candidate);
-            }
             else if (IsDirectionalDoorName(normalizedName))
             {
                 directionalDoors.Add(candidate);
+            }
+            else if (IsDoorGroupName(normalizedName))
+            {
+                doorGroups.Add(candidate);
             }
         }
 
         if (singularDoors.Count > 0)
         {
-            return singularDoors;
+            return RemoveAncestorCandidates(singularDoors);
         }
 
-        if (doorGroups.Count > 0)
+        List<Transform> combinedCandidates = new List<Transform>();
+        combinedCandidates.AddRange(doorGroups);
+        combinedCandidates.AddRange(directionalDoors);
+
+        if (combinedCandidates.Count > 0)
         {
-            return doorGroups;
+            List<Transform> filteredCandidates = RemoveAncestorCandidates(combinedCandidates);
+            filteredCandidates = RemoveGenericDoorContainers(filteredCandidates);
+            if (filteredCandidates.Count > 0)
+            {
+                return filteredCandidates;
+            }
+
+            return RemoveAncestorCandidates(combinedCandidates);
         }
 
         return directionalDoors;
@@ -111,21 +122,88 @@ public static class LevelDoorAutoBinder
 
     private static bool IsDirectionalDoorName(string normalizedName)
     {
-        return IsDirectionAlias(normalizedName, "north") ||
-               IsDirectionAlias(normalizedName, "south") ||
-               IsDirectionAlias(normalizedName, "east") ||
-               IsDirectionAlias(normalizedName, "west");
+        return IsDirectionAlias(normalizedName, "north", "n") ||
+               IsDirectionAlias(normalizedName, "south", "s") ||
+               IsDirectionAlias(normalizedName, "east", "e") ||
+               IsDirectionAlias(normalizedName, "west", "w");
     }
 
-    private static bool IsDirectionAlias(string normalizedName, string direction)
+    private static bool IsDirectionAlias(string normalizedName, string direction, string shorthand)
     {
-        return normalizedName == direction ||
-               normalizedName == "walls_" + direction ||
-               normalizedName == "wall_" + direction ||
-               normalizedName == "walls " + direction ||
-               normalizedName == "wall " + direction ||
-               normalizedName.StartsWith("walls_" + direction + "_", StringComparison.Ordinal) ||
-               normalizedName.StartsWith("walls " + direction + " ", StringComparison.Ordinal);
+        return IsDirectionTokenAlias(normalizedName, direction) ||
+               IsDirectionTokenAlias(normalizedName, shorthand);
+    }
+
+    private static bool IsDirectionTokenAlias(string normalizedName, string directionToken)
+    {
+        return normalizedName == directionToken ||
+               normalizedName == "walls_" + directionToken ||
+               normalizedName == "wall_" + directionToken ||
+               normalizedName == "walls " + directionToken ||
+               normalizedName == "wall " + directionToken ||
+               normalizedName.StartsWith("walls_" + directionToken + "_", StringComparison.Ordinal) ||
+               normalizedName.StartsWith("walls " + directionToken + " ", StringComparison.Ordinal);
+    }
+
+    private static List<Transform> RemoveAncestorCandidates(List<Transform> candidates)
+    {
+        List<Transform> filtered = new List<Transform>();
+
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            Transform candidate = candidates[i];
+            if (candidate == null)
+            {
+                continue;
+            }
+
+            bool hasChildCandidate = false;
+            for (int j = 0; j < candidates.Count; j++)
+            {
+                if (i == j)
+                {
+                    continue;
+                }
+
+                Transform other = candidates[j];
+                if (other != null && other.IsChildOf(candidate))
+                {
+                    hasChildCandidate = true;
+                    break;
+                }
+            }
+
+            if (!hasChildCandidate && !filtered.Contains(candidate))
+            {
+                filtered.Add(candidate);
+            }
+        }
+
+        return filtered;
+    }
+
+    private static List<Transform> RemoveGenericDoorContainers(List<Transform> candidates)
+    {
+        List<Transform> filtered = new List<Transform>();
+
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            Transform candidate = candidates[i];
+            if (candidate == null)
+            {
+                continue;
+            }
+
+            string normalizedName = Normalize(candidate.name);
+            if (normalizedName == "doors" || normalizedName == "doorrs")
+            {
+                continue;
+            }
+
+            filtered.Add(candidate);
+        }
+
+        return filtered;
     }
 
     private static void EnsureInteractionCollider(LevelDoor door)

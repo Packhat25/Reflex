@@ -343,7 +343,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 7405633566628788584, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
       propertyPath: m_Name
-      value: Doors North
+      value: Door
       objectReference: {fileID: 0}
     - target: {fileID: 7894186523454497746, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
       propertyPath: m_LocalPosition.x
@@ -79881,7 +79881,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 7405633566628788584, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
       propertyPath: m_Name
-      value: Doors East
+      value: Door
       objectReference: {fileID: 0}
     - target: {fileID: 7894186523454497746, guid: 5a4e134f7ced37644b3f921d5c895c3f, type: 3}
       propertyPath: m_LocalPosition.x
