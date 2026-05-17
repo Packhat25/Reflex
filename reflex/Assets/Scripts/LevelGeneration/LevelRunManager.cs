@@ -87,6 +87,10 @@ public class LevelRunManager : MonoBehaviour
     [Header("Floor Loop")]
     [SerializeField, Min(1)] private int startingFloor = 1;
 
+    [Header("Boss Floor Rules")]
+    [SerializeField, Min(1)] private int firstBossFloor = 3;
+    [SerializeField, Min(1)] private int bossFloorInterval = 3;
+
     [Header("Floor Difficulty")]
     [SerializeField, Min(0f)] private float enemyHealthPerFloorStep = 0.50f;
     [SerializeField, Min(0f)] private float enemyDamagePerFloorStep = 0.20f;
@@ -627,7 +631,8 @@ public class LevelRunManager : MonoBehaviour
             clearRule == LevelRoomClearRule.EnemySpawners ||
             (clearRule == LevelRoomClearRule.UseGlobalDefaults && UnlockLevelsWithoutSpawners);
 
-        if (shouldUnlockWithoutSpawners && !SceneHasActiveSpawner(scene))
+        bool isBossScene = IsSceneConfiguredAsBoss(node.sceneName);
+        if (shouldUnlockWithoutSpawners && !isBossScene && !SceneHasActiveSpawner(scene))
         {
             MarkCurrentNodeCleared("no active spawners", LevelClearReason.NoActiveSpawners);
         }
@@ -1182,12 +1187,24 @@ public class LevelRunManager : MonoBehaviour
             return;
         }
 
-        foreach (GeneratedLevelNode node in _nodesById.Values)
+        if (TryFindGeneratedNodeForScene(sceneName, out GeneratedLevelNode sceneNode))
         {
-            if (SceneNameEquals(node.sceneName, sceneName))
+            _currentNodeId = sceneNode.id;
+            return;
+        }
+
+        if (IsSceneConfiguredAsBoss(sceneName))
+        {
+            int targetBossFloor = GetFirstBossFloorAtOrAfter(CurrentFloor);
+            if (targetBossFloor != CurrentFloor)
             {
-                _currentNodeId = node.id;
-                return;
+                _currentFloor = targetBossFloor;
+                GenerateNewRun();
+
+                if (TryFindGeneratedNodeForScene(sceneName, out GeneratedLevelNode bossNode))
+                {
+                    _currentNodeId = bossNode.id;
+                }
             }
         }
     }
@@ -1334,12 +1351,32 @@ public class LevelRunManager : MonoBehaviour
             return orderedScenes;
         }
 
-        int nonBossStageCount = keepBossStageAtEnd && bossScenes.Count > 0
+        bool isBossFloor = IsBossFloor(CurrentFloor);
+        bool shouldPlaceBossAtEnd = keepBossStageAtEnd && isBossFloor && bossScenes.Count > 0;
+        int nonBossStageCount = shouldPlaceBossAtEnd
             ? Mathf.Max(0, stageCount - 1)
             : stageCount;
 
         string lastScene = previousScene;
-        List<string> primaryPool = nonBossScenes.Count > 0 ? nonBossScenes : bossScenes;
+        List<string> primaryPool = new List<string>();
+
+        if (nonBossScenes.Count > 0)
+        {
+            primaryPool.AddRange(nonBossScenes);
+        }
+
+        if (isBossFloor && !keepBossStageAtEnd && bossScenes.Count > 0)
+        {
+            for (int i = 0; i < bossScenes.Count; i++)
+            {
+                AddUniqueScene(primaryPool, bossScenes[i]);
+            }
+        }
+
+        if (primaryPool.Count == 0 && bossScenes.Count > 0)
+        {
+            primaryPool.AddRange(bossScenes);
+        }
 
         for (int stageIndex = 0; stageIndex < nonBossStageCount; stageIndex++)
         {
@@ -1348,7 +1385,7 @@ public class LevelRunManager : MonoBehaviour
             lastScene = sceneName;
         }
 
-        if (keepBossStageAtEnd && bossScenes.Count > 0 && orderedScenes.Count < stageCount)
+        if (shouldPlaceBossAtEnd && orderedScenes.Count < stageCount)
         {
             string bossScene = bossScenes[random.Next(bossScenes.Count)];
             orderedScenes.Add(bossScene);
@@ -1709,6 +1746,95 @@ public class LevelRunManager : MonoBehaviour
         }
 
         sceneNames.Add(sceneName);
+    }
+
+    private bool IsBossFloor(int floor)
+    {
+        int firstFloor = Mathf.Max(1, firstBossFloor);
+        int interval = Mathf.Max(1, bossFloorInterval);
+        int clampedFloor = Mathf.Max(1, floor);
+
+        if (clampedFloor < firstFloor)
+        {
+            return false;
+        }
+
+        return (clampedFloor - firstFloor) % interval == 0;
+    }
+
+    private int GetFirstBossFloorAtOrAfter(int floor)
+    {
+        int firstFloor = Mathf.Max(1, firstBossFloor);
+        int interval = Mathf.Max(1, bossFloorInterval);
+        int clampedFloor = Mathf.Max(1, floor);
+
+        if (clampedFloor <= firstFloor)
+        {
+            return firstFloor;
+        }
+
+        int distance = clampedFloor - firstFloor;
+        int steps = (distance + interval - 1) / interval;
+        return firstFloor + steps * interval;
+    }
+
+    private bool TryFindGeneratedNodeForScene(string sceneName, out GeneratedLevelNode nodeMatch)
+    {
+        nodeMatch = null;
+        bool preferHighestNodeId = IsSceneConfiguredAsBoss(sceneName);
+
+        for (int nodeId = 1; nodeId <= GeneratedRoomCount; nodeId++)
+        {
+            if (!_nodesById.TryGetValue(nodeId, out GeneratedLevelNode candidate) ||
+                !SceneNameEquals(candidate.sceneName, sceneName))
+            {
+                continue;
+            }
+
+            if (nodeMatch == null)
+            {
+                nodeMatch = candidate;
+                continue;
+            }
+
+            if (preferHighestNodeId && candidate.id > nodeMatch.id)
+            {
+                nodeMatch = candidate;
+            }
+            else if (!preferHighestNodeId && candidate.id < nodeMatch.id)
+            {
+                nodeMatch = candidate;
+            }
+        }
+
+        return nodeMatch != null;
+    }
+
+    private bool IsSceneConfiguredAsBoss(string sceneName)
+    {
+        if (string.IsNullOrWhiteSpace(sceneName))
+        {
+            return false;
+        }
+
+        if (generationProfile != null && generationProfile.RoomScenes != null)
+        {
+            for (int i = 0; i < generationProfile.RoomScenes.Length; i++)
+            {
+                LevelSceneCandidate candidate = generationProfile.RoomScenes[i];
+                if (candidate == null || string.IsNullOrWhiteSpace(candidate.SceneName))
+                {
+                    continue;
+                }
+
+                if (SceneNameEquals(candidate.SceneName, sceneName))
+                {
+                    return candidate.RoomKind == LevelRoomKind.Boss;
+                }
+            }
+        }
+
+        return SceneNameEquals(sceneName, "Final Boss Level");
     }
 
     private int ComposeFloorDepth(int floor, int stage)

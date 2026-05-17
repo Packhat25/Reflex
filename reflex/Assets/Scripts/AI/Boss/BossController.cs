@@ -142,6 +142,11 @@ public class BossController : MonoBehaviour
             // Force play death clip instantly
             animator.Play("Death", 0, 0f);
         }
+
+        if (LevelRunManager.HasInstance)
+        {
+            LevelRunManager.Instance.MarkCurrentLevelClearedFromScene("Boss defeated");
+        }
     }
 
     private void InitiateAttackSequence()

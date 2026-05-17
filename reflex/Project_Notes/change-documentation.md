@@ -1,3 +1,37 @@
+## 2026-05-18 - Boss Floor Cadence + Direct Boss Scene Routing Fix
+
+### Summary
+Fixed boss-floor progression so boss stages start on floor 3 and repeat every 3 floors, and repaired boss-scene start behavior that could route to unintended rooms.
+
+### Files Affected
+- Assets/Scripts/LevelGeneration/LevelRunManager.cs
+- Assets/Scripts/AI/Boss/BossController.cs
+
+### Systems Affected
+- Floor stage-scene generation
+- Scene-to-node synchronization when loading scenes directly
+- Boss room clear/progression flow
+
+### Gameplay Changes
+- Added configurable boss-floor cadence in `LevelRunManager`:
+  - `firstBossFloor` (default `3`)
+  - `bossFloorInterval` (default `3`)
+- Boss stage placement now follows floor cadence:
+  - Boss floors: include boss stage (kept at end when `keepBossStageAtEnd` is enabled).
+  - Non-boss floors: exclude boss scenes from random stage order.
+- Direct scene starts in a boss scene now align to the next scheduled boss floor run and bind to the generated boss node instead of drifting to another room route.
+- Boss scenes no longer auto-clear from the "no active spawners" fallback path.
+- Boss defeat now explicitly clears the current stage via:
+  - `LevelRunManager.Instance.MarkCurrentLevelClearedFromScene("Boss defeated")`
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Unity Play Mode verification is still required to confirm full in-scene boss encounter flow, defeat timing, and no-door auto-advance behavior.
+
 ## 2026-05-18 - Dash Cancel NullReference Fix (WeaponManager)
 
 ### Summary

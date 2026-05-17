@@ -13,7 +13,7 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Floor-loop logic is now active:
   - Floor 1 stage 1-5 -> Floor 2 stage 1-5 -> ...
 - Lobby is now a one-time entry only (initial start), not a per-floor return hub.
-- Stage order is now randomized per floor (with boss pinned as the final stage when available).
+- Stage order is now randomized per floor, with boss stages scheduled on floors 3, 6, 9... and pinned to the final stage when enabled.
 - Added a floor-specific debug HUD with auto-docking against the existing emotion debug HUD.
 - Repaired broken default generation profile asset serialization (resolved merge-marker corruption).
 - Door auto-binding now supports directional fallback naming used by non-door scene layouts.
@@ -56,7 +56,7 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 
 ## Active Priorities
 - Playtest full path: Lobby (start only) -> Floor 1 stage chain -> Floor 2 stage chain (no lobby return).
-- Validate that each new floor generates a different stage order and still ends with boss.
+- Validate that each new floor generates a different stage order, with boss appearing only on floors 3/6/9... and at final stage on those floors.
 - Validate debug HUD readability and placement on multiple editor game-view resolutions.
 - Validate that directional fallback exits in Lobby remain readable and reachable.
 - Validate entry-door lock selection per scene (including double-door sides) to ensure the intended incoming side is blocked.
@@ -109,7 +109,7 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
   - `calmDecayDelay` / `calmDecayPerSecond`
 
 ## Remaining Tasks
-- Decide whether to keep `Final Boss Level` as stage 5 each floor or introduce a separate standard stage 5 scene.
+- Decide whether boss cadence should remain fixed at every 3 floors or be moved into profile/runtime tuning.
 - Playtest calm-to-aggressive transitions and aggressive-to-calm recovery.
 - Validate that room pacing remains readable at high spawn density.
 - Confirm enemy containment behavior still feels intentional under blended values.
