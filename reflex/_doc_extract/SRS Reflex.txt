@@ -1,0 +1,122 @@
+﻿Re:flex
+Software Requirements Specification
+Version 01.00
+Revision History
+Date
+Version
+Description
+Author
+02/16/2026
+01.00
+Initial Draft
+Rivera, Carlo Jay O.
+Pariño, Jorho Joseph B.
+Gamboa, JobertDamian P.
+Mora, Mark Paolo R.
+Melgar, Craig Francis G.
+Table of Contents
+1.Introduction4
+1.1Purpose4
+1.2Scope4
+1.3Definitions, Acronyms, and Abbreviations4
+1.4Overview5
+2.Overall Description5
+3.Specific Requirements6
+3.1Functionality6
+3.1.1Control Non-Playable Charcters (NPC)6
+3.1.2Determine the emotional state of the user through the emotion engine6
+3.1.3Dynamically change the difficulty or level based on the emotion engine6
+3.1.4Facilitate player movement7
+3.1.5Facilitate user navigation7
+3.2Usability7
+3.2.1Intuitive Controls7
+3.2.2Intuitive UI and HUD7
+3.3Reliability & Availability7
+3.3.1Mean Time Between Failures (MTBF)7
+3.4Performance8
+3.5Security8
+3.5.1Local Data Processing8
+3.5.2Save File Integrity8
+3.6Design Constraints8
+3.6.1Single Player Gameplay8
+3.6.2Limited to PC only8
+3.7Interfaces9
+3.7.1User Interfaces9
+3.7.2Hardware Interfaces9
+3.7.3File System Interface9
+Software Requirements Specification
+Introduction
+The introduction of the Software Requirements Specification (SRS) provides an overview of the entire SRS with purpose, scope, definitions, acronyms, abbreviations, references, and overview of the SRS. The aim of this document is to gather and analyze and give an in-depth insight into the complete Re:Flex software system by defining the problem statement in detail. It concentrates on the capabilities required by stakeholders and their needs while defining high-level product features, such as the Emotion Engine and Adaptive AI.
+Purpose
+The purpose of this document is to define the specific software requirements for the Re:Flex project. It serves as a technical guide for developers and designers to implement the behavioural analysis system that tracks player metrics like damage taken and movement speed to determine emotional states. This ensures all stakeholders understand how the game will dynamically adjust its difficulty and environment.
+Scope
+Primarily, the scope pertains to the core gameplay features for making the Re:Flex project live. It focuses on the behavioural tracking system, the stakeholders, and applications which allow for dynamic difficulty adjustment (DDA), enemy AI adaptation, and procedural level modification within THE MIND LAB simulation.
+This SRS is also aimed at specifying requirements of software to be developed but it can also be applied to assist in the selection of in-house and commercial software products. The standard can be used to create software requirements specifications directly or can be used as a model for defining an organization or project specific standard. It does not identify any specific method.
+Definitions, Acronyms, and Abbreviations
+Term
+Definition
+DDA
+Dynamic Difficulty Adjustment: The method by which a game modifies its own difficulty in real-time based on the player's ability.
+Emotion Engine
+The background system used to calculate and categorize player behavior into emotional states.
+NPC
+Non-Player Character: Any character in the game not controlled by the player, specifically adaptive enemies.
+Overview
+Section 2: Overall Description describes the general factors that affect the product and its users, including the gameplay loop, product perspective, and user characteristics.
+Section 3: Specific Requirements provides a detailed technical breakdown of the system:
+Overall Description
+Re:Flex is a 2.5D action game designed to explore a Dynamic Difficulty Adjustment (DDA) system based on player psychology. The core mechanic is an Emotion Engine that analyzes player behavior (e.g., damage taken, speed, time to clear room) to determine an emotional state (Aggressive or Calm). This state is used to dynamically modify the game's world, including enemy AI and level generation (e.g., Aggressive players face more combat; Calm players face more puzzles). The setting is a digital psychological simulation, THE MIND LAB, where the narrative centers on self-confrontation and AI adaptation.
+Specific Requirements
+The specific requirements are:
+Functionality
+Introduction
+This subsection contains the requirements for the videogame Re:Flex and its algorithm. These requirements areorganized and separated into the main features, and the sub features for each of the main features.
+Control Non-Playable Charcters (NPC)
+Adaptive Combat Tactics: The system shall modify NPC combat patterns based on the Emotion Engine's output
+The system shall implement a dynamic state machine for NPCs that transitions between "Passive," "Cautious," and "Hostile" based on the Emotion Engine’s current classification of the player.
+NPC Aggression Scaling: The system must be able to adjust the "aggro radius" and attack frequency of NPCs in real-time to match the intensity of the player's movement speed and enemy engagement levels
+Pathfinding and Navigation: NPCs must dynamically update their patrol paths within the THE MIND LAB simulation to intercept players who are moving quickly or to avoid players who are spending significant time idle or exploring.
+Dynamic Spawn Logic: Based on the player's state, the system shall adjust the density of NPC spawns
+Determine the emotional state of the user through the emotion engine
+Real-time Analysis: The system must continuously analyse behavioural metrics to determine if the user is in an Aggressive state.
+Stability of State: The system must determine if the user is in a Passive or Calm state based on consistent data trends rather than isolated actions.
+Dynamically change the difficulty or levelbased on the emotion engine
+Procedural Level Modification: The system must be able to change the structural layout of the level, such as spawning additional platforms for puzzle-solving or adding physical barriers to create enclosed combat arenas.
+System Capabilities (Logic Flow):
+The system must be able to identify and process the specific metricssuch as damage taken, death count, and speedto categorize the user's state.
+The system must re-evaluate the player's state every 30–60 seconds to ensure the difficulty remains adaptive to current performance.
+Facilitate player movement
+Translate Directional Input: The system shall translate standard PC peripheral inputs (Keyboard/Mouse) into character movement within the 2.5D environment.
+Manage Kinematic Actions: The system must execute jumping, dashing, or sprinting actions.
+Maintain Movement Integrity: The system must ensure movement is consistent and follows standard 2.5D configurations to minimize the learning curve.
+Facilitate user navigation
+Provide Menu Navigation: The system shall facilitate navigation through the main menu, pause menu, and settings using standard PC peripherals.
+3.1.5.2 Render the Heads-Up Display (HUD): The system must display non-intrusive feedback on player health and game state without obscuring the 2.5D field of view
+Usability
+Intuitive Controls
+Movement and combat abilities will follow standard 2.5D action game configurations to minimize the learning curve and ensure the Emotion Engine is tracking genuine behavior rather than player confusion.
+Intuitive UI and HUD
+The Heads-Up Display (HUD) must provide clear, non-intrusive feedback on player health and game state. UI elements should be positioned to avoid obscuring the 2.5D field of view, ensuring that environmental cues from the "Emotion Engine" remain visible.
+Reliability & Availability
+Mean Time Between Failures (MTBF)
+The application shall maintain an MTBF of at least 50 hours of continuous gameplay. The "Emotion Engine" and background metric tracking must not cause memory leaks or system crashes during extended sessions.
+Performance
+The application must maintain a stable frame rate to accurately calculate the metrics like “Time spent running” or “Time spent idle”. The background processing of the “Emotion Engine” and dynamic adjustments must not cause visual stuttering during the continuous gameplay loop.
+Security
+Local Data Processing
+Statistical data gathered by the game for the engine’s environmental gameplay adaptation will be processed and stored locally on the user’s computer to protect player privacy.
+Save File Integrity
+The system will integrate basic file validation to prevent users from easily modifying their background behaviour tracking data, which would manipulate the final psychological profile.
+Design Constraints
+Single Player Gameplay
+The core engine is strictly designed to analyze a single user’s behaviour. Introducing multiple players would possibly corrupt individual tracking metrics such as “Number of enemies approached” and “Environment interacted”.
+Limited to PC only
+The application is constrained to Windows operating systems and must be optimized to run within the specified baseline hardware limits
+Interfaces
+User Interfaces
+The game will feature a Graphical User Interface (GUI) for the main menu, in-game settings, and the final psychological profile report.
+Menu navigation and HUD interactions must be fully compatible with standard keyboard and mouse inputs
+Hardware Interfaces
+The system will accept input from standard PC peripherals (Keyboard and Mouse) to seamlessly control the Player Movement and Camera Movement.
+File System Interface
+The application will interface with the local OS to generate and export the final statistical data report, outlining the player's psychological profile at the conclusion of the game.

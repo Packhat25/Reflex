@@ -84,7 +84,10 @@ public class PlayerManager : MonoBehaviour
         CheckIfAttacking();
         CheckComboTime();
         //OnPause();
-        InGameUIManager.Instance.UpdateHPText(currentHealth, MaxHealth);
+        if (InGameUIManager.Instance != null)
+        {
+            InGameUIManager.Instance.UpdateHPText(currentHealth, MaxHealth);
+        }
     }
 
     // public void OnPause()
@@ -117,7 +120,10 @@ public class PlayerManager : MonoBehaviour
             isVulnerable = false; // Start invulnerability timer
             Invoke(nameof(ResetVulnerability), stats.invulnerabilityDuration);
         }
-        InGameUIManager.Instance.UpdateHealth(currentHealth, MaxHealth);
+        if (InGameUIManager.Instance != null)
+        {
+            InGameUIManager.Instance.UpdateHealth(currentHealth, MaxHealth);
+        }
     }
 
     private void ResetVulnerability()
@@ -144,6 +150,16 @@ public class PlayerManager : MonoBehaviour
 
     public void ResetTemporaryRunState()
     {
+        ClearTemporaryCardBuffs();
+
+        if (stats != null)
+        {
+            currentHealth = MaxHealth;
+        }
+    }
+
+    public void ClearTemporaryCardBuffs()
+    {
         cardAtkBonus = 0f;
         cardCritChance = 0f;
         cardEssenceMult = 0f;
@@ -152,11 +168,6 @@ public class PlayerManager : MonoBehaviour
         cardDashCDReduction = 0f;
         cardDashDistanceBonus = 0f;
         glassCannonHPModifier = 1f;
-
-        if (stats != null)
-        {
-            currentHealth = MaxHealth;
-        }
     }
 
     private void Die()

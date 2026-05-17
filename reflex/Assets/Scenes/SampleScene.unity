@@ -4934,11 +4934,19 @@ MonoBehaviour:
   fadeInDuration: 0.1
   fadeOutDuration: 0
   openCardRewardsOnLevelClear: 1
+  stageCardRewardTrigger: 0
+  clearPreviousStageCardOnNewSelection: 1
   allAvailableCards:
   - {fileID: 11400000, guid: fdb8a821a699d034eae6be501ec422db, type: 2}
   - {fileID: 11400000, guid: 2d1aba2703ee45e4bb1672054cc5452b, type: 2}
   - {fileID: 11400000, guid: 88d87438beae894459b345515016fbbd, type: 2}
   - {fileID: 11400000, guid: b8b5dc19696837848a269293602477a6, type: 2}
+  - {fileID: 11400000, guid: c1c3e9f951094095b23398c1dd0a7d30, type: 2}
+  - {fileID: 11400000, guid: 0a89f7a9fb8f4d2a9f4a7fdbf6aa7f40, type: 2}
+  - {fileID: 11400000, guid: 6d4ad095af1a4a9591aeae05b6020d52, type: 2}
+  - {fileID: 11400000, guid: b65cf41dd3394aa49f63395f03074d11, type: 2}
+  - {fileID: 11400000, guid: 23c9f9d50a3047c28e6a8f16fe22b42b, type: 2}
+  - {fileID: 11400000, guid: 90e6715d5e5c48f7a6ea08759f2a3b7c, type: 2}
   stagesPerLevel: 5
   baseEssencePerClear: 5
   essencePerKill: 2

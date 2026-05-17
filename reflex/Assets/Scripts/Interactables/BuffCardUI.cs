@@ -31,6 +31,21 @@ public class BuffCardUI : MonoBehaviour
             return;
         }
 
+        if (manager == null)
+        {
+            manager = RewardManager.Instance;
+            if (manager == null)
+            {
+                manager = FindFirstObjectByType<RewardManager>();
+            }
+        }
+
+        if (manager == null)
+        {
+            Debug.LogWarning("BuffCardUI click ignored because no RewardManager instance is available.");
+            return;
+        }
+
         manager.SelectCard(cardData);
     }
 }

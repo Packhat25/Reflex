@@ -30,11 +30,32 @@ public struct LevelDoorRoute
     public string DestinationLabel;
 }
 
+public enum LevelClearReason
+{
+    Unknown = 0,
+    AlwaysUnlocked = 1,
+    NoActiveSpawners = 2,
+    RoomEvaluated = 3,
+    SceneRequested = 4
+}
+
+[Serializable]
+public struct LevelClearContext
+{
+    public int nodeId;
+    public int floorDepth;
+    public string sceneName;
+    public LevelClearReason reason;
+    public bool hasRoomReport;
+    public EmotionRoomReport roomReport;
+}
+
 [DefaultExecutionOrder(-1000)]
 public class LevelRunManager : MonoBehaviour
 {
     public static event Action<int, int, string> LevelEntered;
     public static event Action<int, int, string> LevelCleared;
+    public static event Action<LevelClearContext> LevelClearedDetailed;
 
     private static LevelRunManager _instance;
 
@@ -96,6 +117,8 @@ public class LevelRunManager : MonoBehaviour
     private int _activeSeed;
     private int _currentFloor = 1;
     private PlayerManager _persistentPlayer;
+    private EmotionRoomReport _pendingRoomClearReport;
+    private bool _hasPendingRoomClearReport;
 
     public static bool HasInstance
     {
@@ -177,6 +200,8 @@ public class LevelRunManager : MonoBehaviour
     {
         get { return _clearedNodeIds.Contains(_currentNodeId); }
     }
+
+    public LevelClearContext LastClearContext { get; private set; }
 
     public float CurrentFloorEnemyHealthMultiplier => 1f + Mathf.Max(0, CurrentFloor - 1) * enemyHealthPerFloorStep;
     public float CurrentFloorEnemyDamageMultiplier => 1f + Mathf.Max(0, CurrentFloor - 1) * enemyDamagePerFloorStep;
@@ -567,7 +592,7 @@ public class LevelRunManager : MonoBehaviour
 
         if (node.id == 0 || clearRule == LevelRoomClearRule.AlwaysUnlocked)
         {
-            MarkCurrentNodeCleared("room configured as always unlocked");
+            MarkCurrentNodeCleared("room configured as always unlocked", LevelClearReason.AlwaysUnlocked);
             return;
         }
 
@@ -582,7 +607,7 @@ public class LevelRunManager : MonoBehaviour
 
         if (shouldUnlockWithoutSpawners && !SceneHasActiveSpawner(scene))
         {
-            MarkCurrentNodeCleared("no active spawners");
+            MarkCurrentNodeCleared("no active spawners", LevelClearReason.NoActiveSpawners);
         }
     }
 
@@ -610,16 +635,19 @@ public class LevelRunManager : MonoBehaviour
             return;
         }
 
-        MarkCurrentNodeCleared("room cleared");
+        _pendingRoomClearReport = report;
+        _hasPendingRoomClearReport = true;
+        MarkCurrentNodeCleared("room cleared", LevelClearReason.RoomEvaluated);
+        _hasPendingRoomClearReport = false;
     }
 
     public void MarkCurrentLevelClearedFromScene(string source)
     {
         string reason = string.IsNullOrWhiteSpace(source) ? "scene script requested clear" : source + " requested clear";
-        MarkCurrentNodeCleared(reason);
+        MarkCurrentNodeCleared(reason, LevelClearReason.SceneRequested);
     }
 
-    private void MarkCurrentNodeCleared(string reason)
+    private void MarkCurrentNodeCleared(string reason, LevelClearReason clearReason)
     {
         if (!_nodesById.TryGetValue(_currentNodeId, out GeneratedLevelNode node) ||
             !_clearedNodeIds.Add(_currentNodeId))
@@ -627,7 +655,19 @@ public class LevelRunManager : MonoBehaviour
             return;
         }
 
+        LevelClearContext clearContext = new LevelClearContext
+        {
+            nodeId = node.id,
+            floorDepth = node.depth,
+            sceneName = node.sceneName,
+            reason = clearReason,
+            hasRoomReport = clearReason == LevelClearReason.RoomEvaluated && _hasPendingRoomClearReport,
+            roomReport = _pendingRoomClearReport
+        };
+
+        LastClearContext = clearContext;
         LevelCleared?.Invoke(node.id, node.depth, node.sceneName);
+        LevelClearedDetailed?.Invoke(clearContext);
 
         if (ShouldDisableSpawnersAfterClear() && node.id != 0)
         {

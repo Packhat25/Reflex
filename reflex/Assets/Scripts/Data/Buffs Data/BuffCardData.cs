@@ -5,6 +5,9 @@ public class BuffCardData : ScriptableObject
 {
     public string cardName;
     [TextArea] public string description;
+    [Header("Reward Pool")]
+    [Min(0)] public int obtainWeight = 10;
+    [Min(0)] public int calmStateBonusWeight;
 
     [Header("Combat Buffs")]
     public float atkBonus;

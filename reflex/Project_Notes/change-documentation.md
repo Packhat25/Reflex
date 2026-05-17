@@ -464,3 +464,180 @@ Added progression-stability safeguards so emotion telemetry does not saturate or
 
 ### Known Limitations
 - Needs in-editor multi-floor verification to confirm behavior under all room/spawner combinations.
+
+## 2026-05-17 - Composure Reward UI Wiring (Status Message)
+
+### Summary
+Finished wiring the composure reward status message UI so `+Soul Essence (Composure)` can render through the persistent `UI Manager` prefab at runtime.
+
+### Files Affected
+- Assets/Prefabs/UI/UI Manager.prefab
+
+### Scenes Affected
+- Assets/Scenes/SampleScene.unity (inspected prefab instance overrides)
+- Assets/Scenes/Lobby.unity (inspected prefab instance overrides)
+- Assets/Scenes/Level_4_Scene.unity (inspected prefab instance overrides)
+
+### Systems Affected
+- In-game HUD status messaging presentation
+- Composure reward player feedback loop
+
+### Gameplay/UI Changes
+- Wired `InGameUIManager` serialized references in the prefab:
+  - `inGameUICanvasGroup`
+  - `PauseUICanvasGroup`
+  - `statusMessageText`
+  - `statusMessageCanvasGroup`
+- Added a dedicated `Status Message Text` object under `In-Game UI Canvas` with:
+  - `TextMeshProUGUI` component for runtime message content
+  - `CanvasGroup` initialized hidden (`alpha = 0`) for fade-in/fade-out playback
+- Serialized status fade timings in prefab to match script defaults.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Direct in-editor launches of scenes that do not include/instantiate the persistent `UI Manager` prefab will not show composure status text until that prefab is present.
+
+## 2026-05-17 - Stage-Clear Temporary Buff Rewards + Weighted Card Pool
+
+### Summary
+Implemented stage-end reward cards as temporary buffs (one active stage card at a time), formalized what counts as a valid stage clear for card UI triggering, and expanded the buff card pool with weighted obtain rates.
+
+### Files Affected
+- Assets/Scripts/Interactables/RewardManager.cs
+- Assets/Scripts/LevelGeneration/LevelRunManager.cs
+- Assets/Scripts/Player/PlayerManager.cs
+- Assets/Scripts/Data/Buffs Data/BuffCardData.cs
+- Assets/Scenes/SampleScene.unity
+- Assets/Buff Cards/Brute Force I.asset
+- Assets/Buff Cards/Precision I.asset
+- Assets/Buff Cards/Fleet foot.asset
+- Assets/Buff Cards/Glass Cannon.asset
+- Assets/Buff Cards/Momentum Rhythm.asset
+- Assets/Buff Cards/Soul Siphon I.asset
+- Assets/Buff Cards/Essence Surge I.asset
+- Assets/Buff Cards/Kinetic Focus.asset
+- Assets/Buff Cards/Windrunner.asset
+- Assets/Buff Cards/Berserker Tempo.asset
+
+### Systems Affected
+- Stage clear detection and clear-reason signaling
+- Reward screen trigger policy
+- Temporary stage card buff lifecycle
+- Card pool selection/randomization
+
+### Gameplay/UI Changes
+- Stage clear now exposes a typed clear context (`LevelClearContext`) from `LevelRunManager`, including:
+  - clear reason (`RoomEvaluated`, `NoActiveSpawners`, `AlwaysUnlocked`, `SceneRequested`)
+  - optional room report payload for combat clears
+- RewardManager now uses detailed clear context instead of generic clear event to decide card reward UI trigger.
+- Added configurable stage reward trigger mode:
+  - `AnyStageClear`
+  - `CombatRoomClear` (default)
+  - `CalmCombatRoomClear`
+- Buff cards are now explicitly temporary per stage selection:
+  - previous card buffs are cleared before applying the newly selected stage card.
+- Card offering changed from uniform random to weighted random without replacement.
+- Added obtain-rate fields to card data:
+  - `obtainWeight`
+  - `calmStateBonusWeight` (extra weight on calm clears)
+- Expanded available stage cards in `SampleScene` from 4 to 10.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- RewardManager card-pool expansion was serialized in `SampleScene`; if other scenes use separate RewardManager instances, mirror the card list there.
+- In-editor Play Mode validation is still required for final balance feel and UI pacing across consecutive stage clears.
+
+## 2026-05-17 - Reward Popup Reliability Fix (Cross-Scene Stage Flow)
+
+### Summary
+Fixed missing stage reward card popup in normal stage progression by making `RewardManager` available across scenes and adding a runtime fallback reward UI when scene-wired card UI is absent.
+
+### Files Affected
+- Assets/Scripts/Interactables/RewardManager.cs
+- Assets/Scenes/SampleScene.unity
+
+### Systems Affected
+- Cross-scene reward manager lifecycle
+- Stage-clear card reward popup reliability
+- Runtime fallback UI and card-pool provisioning
+
+### Gameplay/UI Changes
+- Added RewardManager auto-bootstrap before scene load.
+- RewardManager now persists with singleton behavior and prefers richer scene configuration when available.
+- Added runtime fallback reward overlay (3 card choices) for scenes without prewired reward UI.
+- Added runtime fallback card pool matching current temporary stage cards when no serialized card pool is present.
+- Updated default stage-card trigger policy to `AnyStageClear` to avoid suppressed popups when clear reason is not room-evaluation.
+- Updated `SampleScene` trigger mode to `AnyStageClear` for consistency.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Runtime fallback UI is functional and readable, but art polish still depends on using a fully scene-authored reward canvas.
+- In-editor Play Mode validation is still required to tune exact timing/flow feel after clear events.
+
+## 2026-05-17 - Reward Card Freeze Fix (Open/Select Stability)
+
+### Summary
+Fixed stage reward card flow freezes that could leave gameplay stuck at `Time.timeScale = 0` when the reward popup opened or when a card was selected.
+
+### Files Affected
+- Assets/Scripts/Interactables/RewardManager.cs
+- Assets/Scripts/Interactables/BuffCardUI.cs
+- Assets/Scripts/Player/PlayerManager.cs
+
+### Systems Affected
+- Reward popup transition lifecycle (fade in/out and pause state)
+- Card click routing to active reward manager instance
+- UI safety around missing or reloaded persistent HUD references
+
+### Gameplay/UI Changes
+- Added fade coroutine coordination in `RewardManager`:
+  - Fade-in and fade-out now cancel each other cleanly to avoid `Time.timeScale` race conditions.
+  - Reward popup now force-closes safely on scene load/disable/destroy and always restores `Time.timeScale` to `1`.
+- Added runtime `EventSystem` bootstrap in `RewardManager` when missing, so reward cards remain clickable in combat scenes that lack scene-authored UI event input modules.
+- Added guard to skip opening reward UI when zero valid card choices exist, preventing soft-locks on empty card pools.
+- Added manager fallback lookup in `BuffCardUI` so card clicks still resolve if the serialized manager reference is stale.
+- Added null-guarded HP UI updates in `PlayerManager` to avoid runtime null-reference spam when UI manager instances reload.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing warning remains unrelated:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Full Play Mode validation is still needed for end-to-end feel verification during rapid card selection and immediate scene transitions.
+
+## 2026-05-17 - Reward Popup Regression Fix (Post-Transition Suppression)
+
+### Summary
+Fixed a regression where reward cards could fail to appear after entering later stages because transition safety cleanup could hide a newly-triggered reward popup.
+
+### Files Affected
+- Assets/Scripts/Interactables/RewardManager.cs
+
+### Systems Affected
+- Scene transition reward popup lifecycle
+- Stage-clear reward visibility consistency
+
+### Gameplay/UI Changes
+- Changed reward transition cleanup hook from `SceneManager.sceneLoaded` to `SceneManager.sceneUnloaded`.
+- This preserves the safety cleanup for stale popups between scenes while preventing same-transition suppression of rewards that trigger during scene-load progression checks.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing warning remains unrelated:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Unity Play Mode verification is still required to confirm expected popup cadence across full multi-stage and multi-floor traversal.

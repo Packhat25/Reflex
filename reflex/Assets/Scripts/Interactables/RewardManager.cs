@@ -4,6 +4,13 @@ using System.Linq;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
+using TMPro;
+using UnityEngine.SceneManagement;
+using UnityEngine.EventSystems;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem.UI;
+#endif
 
 [Serializable]
 public struct LevelRewardContext
@@ -20,8 +27,18 @@ public struct LevelRewardContext
     public string LevelStageLabel => levelNumber + "-" + stageNumber;
 }
 
+public enum StageCardRewardTriggerMode
+{
+    AnyStageClear = 0,
+    CombatRoomClear = 1,
+    CalmCombatRoomClear = 2
+}
+
 public class RewardManager : MonoBehaviour
 {
+    private static RewardManager _instance;
+    private const float TimeScaleEpsilon = 0.0001f;
+
     [Header("References")]
     [SerializeField] private PlayerManager playerManager;
     [SerializeField] private CanvasGroup rewardCanvasGroup; // For fading in/out the reward UI
@@ -30,6 +47,8 @@ public class RewardManager : MonoBehaviour
     [SerializeField] private float fadeInDuration = 0.5f;
     [SerializeField] private float fadeOutDuration = 0.5f;
     [SerializeField] private bool openCardRewardsOnLevelClear = true;
+    [SerializeField] private StageCardRewardTriggerMode stageCardRewardTrigger = StageCardRewardTriggerMode.AnyStageClear;
+    [SerializeField] private bool clearPreviousStageCardOnNewSelection = true;
 
     [Header("Card Pool")]
     [SerializeField] private BuffCardData[] allAvailableCards;
@@ -53,25 +72,94 @@ public class RewardManager : MonoBehaviour
 
     public event Action<LevelRewardContext> LevelRewardGranted;
 
+    public static RewardManager Instance => _instance;
+
     public LevelRewardContext LastRewardContext { get; private set; }
 
     private int _killsThisLevel;
     private bool _rewardScreenOpen;
+    private bool _usingRuntimeRewardUI;
+    private Button[] _runtimeCardButtons;
+    private TextMeshProUGUI[] _runtimeCardNameTexts;
+    private TextMeshProUGUI[] _runtimeCardDescriptionTexts;
+    private BuffCardData[] _runtimeChoices;
+    private readonly List<BuffCardData> _runtimeGeneratedCards = new List<BuffCardData>();
+    private Coroutine _fadeInCoroutine;
+    private Coroutine _fadeOutCoroutine;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    private static void Bootstrap()
+    {
+        if (FindFirstObjectByType<RewardManager>() != null)
+        {
+            return;
+        }
+
+        GameObject rewardManagerObject = new GameObject("RewardManager");
+        rewardManagerObject.AddComponent<RewardManager>();
+    }
+
+    private void Awake()
+    {
+        if (_instance != null && _instance != this)
+        {
+            int existingScore = _instance.GetConfigurationScore();
+            int currentScore = GetConfigurationScore();
+
+            if (currentScore > existingScore)
+            {
+                Destroy(_instance.gameObject);
+                _instance = this;
+            }
+            else
+            {
+                Destroy(gameObject);
+                return;
+            }
+        }
+
+        _instance = this;
+        DontDestroyOnLoad(gameObject);
+    }
 
     private void OnEnable()
     {
+        EnsureRewardUIAndCardPoolReady();
         LevelRunManager.LevelEntered += HandleLevelEntered;
-        LevelRunManager.LevelCleared += HandleLevelCleared;
+        LevelRunManager.LevelClearedDetailed += HandleLevelCleared;
         EnemyController.EnemyDefeated += HandleEnemyDefeated;
         EmotionEngine.RoomEvaluated += HandleRoomEvaluated;
+        SceneManager.sceneUnloaded += HandleSceneUnloaded;
     }
 
     private void OnDisable()
     {
         LevelRunManager.LevelEntered -= HandleLevelEntered;
-        LevelRunManager.LevelCleared -= HandleLevelCleared;
+        LevelRunManager.LevelClearedDetailed -= HandleLevelCleared;
         EnemyController.EnemyDefeated -= HandleEnemyDefeated;
         EmotionEngine.RoomEvaluated -= HandleRoomEvaluated;
+        SceneManager.sceneUnloaded -= HandleSceneUnloaded;
+        ForceCloseRewardScreenImmediate();
+    }
+
+    private void OnDestroy()
+    {
+        ForceCloseRewardScreenImmediate();
+
+        if (_instance == this)
+        {
+            _instance = null;
+        }
+
+        for (int i = 0; i < _runtimeGeneratedCards.Count; i++)
+        {
+            if (_runtimeGeneratedCards[i] != null)
+            {
+                Destroy(_runtimeGeneratedCards[i]);
+            }
+        }
+
+        _runtimeGeneratedCards.Clear();
     }
 
     void Update()
@@ -85,40 +173,80 @@ public class RewardManager : MonoBehaviour
 
     public void OpenRewardScreen()
     {
-        if (_rewardScreenOpen || rewardCanvasGroup == null || cardUI == null || cardUI.Length == 0)
+        OpenRewardScreen(false);
+    }
+
+    private void OpenRewardScreen(bool calmClear)
+    {
+        if (_rewardScreenOpen)
         {
             return;
         }
 
-        _rewardScreenOpen = true;
-        StartCoroutine(FadeInUI());
-
-        foreach (var card in cardUI)
+        if (!EnsureRewardUIAndCardPoolReady())
         {
-            if (card != null)
+            Debug.LogWarning("RewardManager could not open reward UI because no UI/card pool is available.");
+            return;
+        }
+
+        EnsureEventSystem();
+
+        int choiceCapacity = _usingRuntimeRewardUI
+            ? (_runtimeCardButtons != null ? _runtimeCardButtons.Length : 0)
+            : (cardUI != null ? cardUI.Length : 0);
+
+        if (choiceCapacity <= 0)
+        {
+            return;
+        }
+
+        List<BuffCardData> choices = BuildWeightedCardChoices(choiceCapacity, calmClear);
+        if (choices.Count <= 0)
+        {
+            Debug.LogWarning("RewardManager skipped reward UI because no buff cards were available.");
+            return;
+        }
+
+        _rewardScreenOpen = true;
+        StartFadeIn();
+
+        if (!_usingRuntimeRewardUI)
+        {
+            foreach (BuffCardUI card in cardUI)
             {
-                card.ClearBuffText();
+                if (card != null)
+                {
+                    card.ClearBuffText();
+                }
             }
         }
 
-        // Pick 3 unique random cards
-        var choices = allAvailableCards != null
-            ? allAvailableCards.Where(card => card != null).OrderBy(x => UnityEngine.Random.value).Take(cardUI.Length).ToList()
-            : new List<BuffCardData>();
+        if (_usingRuntimeRewardUI)
+        {
+            AssignRuntimeChoices(choices);
+            return;
+        }
 
         // assign each card to a socket
-        for (int i = 0; i < choices.Count; i++)
+        for (int i = 0; i < cardUI.Length; i++)
         {
-            if (cardUI[i] != null)
+            BuffCardData choice = i < choices.Count ? choices[i] : null;
+            if (cardUI[i] != null && choice != null)
             {
-                cardUI[i].Setup(choices[i]);
+                cardUI[i].Setup(choice);
             }
         }
     }
 
     private IEnumerator FadeInUI()
     {
-        float duration = fadeInDuration;
+        if (rewardCanvasGroup == null)
+        {
+            ForceCloseRewardScreenImmediate();
+            yield break;
+        }
+
+        float duration = Mathf.Max(TimeScaleEpsilon, fadeInDuration);
         float elapsed = 0f;
 
         rewardCanvasGroup.interactable = true;
@@ -133,11 +261,18 @@ public class RewardManager : MonoBehaviour
         }
         rewardCanvasGroup.alpha = 1f;
         Time.timeScale = 0f;
+        _fadeInCoroutine = null;
     }
 
     private IEnumerator FadeOutUI()
     {
-        float duration = fadeOutDuration;
+        if (rewardCanvasGroup == null)
+        {
+            ForceCloseRewardScreenImmediate();
+            yield break;
+        }
+
+        float duration = Mathf.Max(0f, fadeOutDuration);
         float elapsed = 0f;
 
         rewardCanvasGroup.interactable = false;
@@ -153,6 +288,7 @@ public class RewardManager : MonoBehaviour
         }
         rewardCanvasGroup.alpha = 0f;
         _rewardScreenOpen = false;
+        _fadeOutCoroutine = null;
     }
 
     public void SelectCard(BuffCardData card)
@@ -166,8 +302,13 @@ public class RewardManager : MonoBehaviour
 
         if (playerManager == null)
         {
-            StartCoroutine(FadeOutUI());
+            StartFadeOut();
             return;
+        }
+
+        if (clearPreviousStageCardOnNewSelection)
+        {
+            playerManager.ClearTemporaryCardBuffs();
         }
 
         // Apply the additive bonuses to PlayerManager
@@ -183,7 +324,7 @@ public class RewardManager : MonoBehaviour
 
         if (card.isGlassCannon) playerManager.ApplyGlassCannon();
 
-        StartCoroutine(FadeOutUI());
+        StartFadeOut();
     }
 
     private void HandleLevelEntered(int nodeId, int floorDepth, string sceneName)
@@ -196,9 +337,19 @@ public class RewardManager : MonoBehaviour
         _killsThisLevel++;
     }
 
-    private void HandleLevelCleared(int nodeId, int floorDepth, string sceneName)
+    private void HandleLevelCleared(LevelClearContext clearContext)
     {
+        int nodeId = clearContext.nodeId;
+        int floorDepth = clearContext.floorDepth;
+        string sceneName = clearContext.sceneName;
+
         if (floorDepth <= 0)
+        {
+            return;
+        }
+
+        bool calmClear = clearContext.hasRoomReport && clearContext.roomReport.emotionAfter == PlayerEmotionState.Calm;
+        if (!ShouldGrantStageCardReward(clearContext, calmClear))
         {
             return;
         }
@@ -217,7 +368,7 @@ public class RewardManager : MonoBehaviour
 
         if (openCardRewardsOnLevelClear)
         {
-            OpenRewardScreen();
+            OpenRewardScreen(calmClear);
         }
     }
 
@@ -316,11 +467,492 @@ public class RewardManager : MonoBehaviour
         return Mathf.Clamp(scaledBonus, 0, composureBonusMaxEssence);
     }
 
+    private int GetConfigurationScore()
+    {
+        int score = 0;
+        if (HasSerializedRewardUIBindings())
+        {
+            score += 10;
+        }
+
+        if (allAvailableCards != null && allAvailableCards.Any(card => card != null))
+        {
+            score += 5;
+        }
+
+        if (_usingRuntimeRewardUI)
+        {
+            score += 2;
+        }
+
+        return score;
+    }
+
+    private bool HasSerializedRewardUIBindings()
+    {
+        return rewardCanvasGroup != null &&
+               cardUI != null &&
+               cardUI.Length > 0 &&
+               cardUI.Any(slot => slot != null);
+    }
+
+    private bool EnsureRewardUIAndCardPoolReady()
+    {
+        EnsureRuntimeCardPoolFallback();
+
+        if (!HasSerializedRewardUIBindings())
+        {
+            BuildRuntimeRewardUIIfNeeded();
+        }
+        else
+        {
+            _usingRuntimeRewardUI = false;
+        }
+
+        bool hasAnyCardPool = allAvailableCards != null && allAvailableCards.Any(card => card != null);
+        bool hasAnyUi = HasSerializedRewardUIBindings() || HasRuntimeRewardUIBindings();
+        return hasAnyUi && hasAnyCardPool;
+    }
+
+    private bool HasRuntimeRewardUIBindings()
+    {
+        return _usingRuntimeRewardUI &&
+               rewardCanvasGroup != null &&
+               _runtimeCardButtons != null &&
+               _runtimeCardButtons.Length > 0;
+    }
+
+    private void EnsureRuntimeCardPoolFallback()
+    {
+        if (allAvailableCards != null && allAvailableCards.Any(card => card != null))
+        {
+            return;
+        }
+
+        if (_runtimeGeneratedCards.Count == 0)
+        {
+            BuildRuntimeCardPool();
+        }
+
+        allAvailableCards = _runtimeGeneratedCards.ToArray();
+    }
+
+    private void BuildRuntimeCardPool()
+    {
+        _runtimeGeneratedCards.Add(CreateRuntimeCard("Brute Force I", "Increase your strength by 10%.", 24, 0, atkBonus: 0.1f));
+        _runtimeGeneratedCards.Add(CreateRuntimeCard("Precision I", "Increase your crit chance by 1%.", 22, 0, critBonus: 0.01f));
+        _runtimeGeneratedCards.Add(CreateRuntimeCard("Fleet foot", "Sacrifice dash distance for a shorter dash cooldown.", 12, 1, dashCdReduction: 0.5f, dashDistanceBonus: -15f));
+        _runtimeGeneratedCards.Add(CreateRuntimeCard("Glass Cannon", "Double damage taken and dealt.", 6, 0, isGlassCannon: true));
+        _runtimeGeneratedCards.Add(CreateRuntimeCard("Momentum Rhythm", "Extend combo timing to keep pressure between attacks.", 18, 2, comboWindowBonus: 0.3f));
+        _runtimeGeneratedCards.Add(CreateRuntimeCard("Soul Siphon I", "Small chance to lifesteal from hits this stage.", 14, 2, vampiricBonus: 0.12f));
+        _runtimeGeneratedCards.Add(CreateRuntimeCard("Essence Surge I", "Increase Soul Essence gains for the next stage.", 13, 4, essenceBonus: 0.2f));
+        _runtimeGeneratedCards.Add(CreateRuntimeCard("Kinetic Focus", "Boost crit chance and combo control for this stage.", 16, 1, critBonus: 0.03f, comboWindowBonus: 0.15f));
+        _runtimeGeneratedCards.Add(CreateRuntimeCard("Windrunner", "Faster dash cooldown with improved dash reach.", 12, 2, dashCdReduction: 0.25f, dashDistanceBonus: 6f));
+        _runtimeGeneratedCards.Add(CreateRuntimeCard("Berserker Tempo", "A rare burst of damage and crit for one stage.", 7, 0, atkBonus: 0.14f, critBonus: 0.02f));
+    }
+
+    private BuffCardData CreateRuntimeCard(
+        string name,
+        string description,
+        int obtainWeight,
+        int calmBonusWeight,
+        float atkBonus = 0f,
+        float critBonus = 0f,
+        float comboWindowBonus = 0f,
+        float dashCdReduction = 0f,
+        float dashDistanceBonus = 0f,
+        float essenceBonus = 0f,
+        float vampiricBonus = 0f,
+        bool isGlassCannon = false)
+    {
+        BuffCardData card = ScriptableObject.CreateInstance<BuffCardData>();
+        card.hideFlags = HideFlags.HideAndDontSave;
+        card.cardName = name;
+        card.description = description;
+        card.obtainWeight = obtainWeight;
+        card.calmStateBonusWeight = calmBonusWeight;
+        card.atkBonus = atkBonus;
+        card.critBonus = critBonus;
+        card.comboWindowBonus = comboWindowBonus;
+        card.dashCDReduction = dashCdReduction;
+        card.dashDistanceBonus = dashDistanceBonus;
+        card.essenceBonus = essenceBonus;
+        card.vampiricBonus = vampiricBonus;
+        card.isGlassCannon = isGlassCannon;
+        return card;
+    }
+
+    private void BuildRuntimeRewardUIIfNeeded()
+    {
+        if (HasRuntimeRewardUIBindings())
+        {
+            return;
+        }
+
+        GameObject canvasObject = new GameObject(
+            "Reward Canvas (Runtime)",
+            typeof(RectTransform),
+            typeof(Canvas),
+            typeof(CanvasScaler),
+            typeof(GraphicRaycaster),
+            typeof(CanvasGroup));
+
+        canvasObject.transform.SetParent(transform, false);
+
+        Canvas canvas = canvasObject.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 800;
+        canvas.pixelPerfect = false;
+
+        CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+        scaler.matchWidthOrHeight = 0.5f;
+
+        CanvasGroup canvasGroup = canvasObject.GetComponent<CanvasGroup>();
+        canvasGroup.alpha = 0f;
+        canvasGroup.interactable = false;
+        canvasGroup.blocksRaycasts = false;
+        rewardCanvasGroup = canvasGroup;
+
+        RectTransform canvasRect = canvasObject.GetComponent<RectTransform>();
+        canvasRect.anchorMin = Vector2.zero;
+        canvasRect.anchorMax = Vector2.one;
+        canvasRect.offsetMin = Vector2.zero;
+        canvasRect.offsetMax = Vector2.zero;
+
+        CreateImage("Dim", canvasRect, new Color(0f, 0f, 0f, 0.78f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, Vector2.one * 0.5f);
+        RectTransform panel = CreateImage("Panel", canvasRect, new Color(0.09f, 0.11f, 0.18f, 0.98f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1460f, 760f), Vector2.one * 0.5f);
+
+        CreateText("Title", panel, "Select Buff!", 68f, FontStyles.Bold, new Color(0.95f, 0.97f, 1f, 1f),
+            new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -84f), new Vector2(900f, 90f), new Vector2(0.5f, 0.5f), TextAlignmentOptions.Center);
+        CreateText("Hint", panel, "Tap a card to claim a temporary stage buff", 34f, FontStyles.Normal, new Color(0.82f, 0.88f, 1f, 0.95f),
+            new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 56f), new Vector2(1200f, 60f), new Vector2(0.5f, 0.5f), TextAlignmentOptions.Center);
+
+        _runtimeCardButtons = new Button[3];
+        _runtimeCardNameTexts = new TextMeshProUGUI[3];
+        _runtimeCardDescriptionTexts = new TextMeshProUGUI[3];
+        _runtimeChoices = new BuffCardData[3];
+
+        float[] xOffsets = { -430f, 0f, 430f };
+        for (int i = 0; i < _runtimeCardButtons.Length; i++)
+        {
+            RectTransform card = CreateImage("Card " + (i + 1), panel, new Color(0.13f, 0.16f, 0.25f, 1f),
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(xOffsets[i], -12f), new Vector2(360f, 500f), Vector2.one * 0.5f);
+            Image cardImage = card.GetComponent<Image>();
+            cardImage.raycastTarget = true;
+
+            Button button = card.gameObject.AddComponent<Button>();
+            ColorBlock buttonColors = button.colors;
+            buttonColors.normalColor = Color.white;
+            buttonColors.highlightedColor = new Color(0.92f, 0.95f, 1f, 1f);
+            buttonColors.pressedColor = new Color(0.8f, 0.85f, 1f, 1f);
+            button.colors = buttonColors;
+            int capturedIndex = i;
+            button.onClick.AddListener(() => OnRuntimeCardChoiceSelected(capturedIndex));
+
+            _runtimeCardButtons[i] = button;
+            _runtimeCardNameTexts[i] = CreateText("Name", card, "", 34f, FontStyles.Bold, Color.white,
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -44f), new Vector2(320f, 60f), new Vector2(0.5f, 0.5f), TextAlignmentOptions.Center);
+            _runtimeCardDescriptionTexts[i] = CreateText("Description", card, "", 25f, FontStyles.Normal, new Color(0.9f, 0.93f, 1f, 1f),
+                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 146f), new Vector2(320f, 240f), new Vector2(0.5f, 0.5f), TextAlignmentOptions.TopLeft);
+        }
+
+        _usingRuntimeRewardUI = true;
+    }
+
+    private RectTransform CreateImage(
+        string name,
+        RectTransform parent,
+        Color color,
+        Vector2 anchorMin,
+        Vector2 anchorMax,
+        Vector2 anchoredPosition,
+        Vector2 sizeDelta,
+        Vector2 pivot)
+    {
+        GameObject imageObject = new GameObject(name, typeof(RectTransform), typeof(Image));
+        imageObject.transform.SetParent(parent, false);
+        RectTransform rect = imageObject.GetComponent<RectTransform>();
+        rect.anchorMin = anchorMin;
+        rect.anchorMax = anchorMax;
+        rect.pivot = pivot;
+        rect.anchoredPosition = anchoredPosition;
+        rect.sizeDelta = sizeDelta;
+        Image image = imageObject.GetComponent<Image>();
+        image.color = color;
+        return rect;
+    }
+
+    private TextMeshProUGUI CreateText(
+        string name,
+        RectTransform parent,
+        string value,
+        float fontSize,
+        FontStyles fontStyle,
+        Color color,
+        Vector2 anchorMin,
+        Vector2 anchorMax,
+        Vector2 anchoredPosition,
+        Vector2 sizeDelta,
+        Vector2 pivot,
+        TextAlignmentOptions alignment)
+    {
+        GameObject textObject = new GameObject(name, typeof(RectTransform), typeof(TextMeshProUGUI));
+        textObject.transform.SetParent(parent, false);
+        RectTransform rect = textObject.GetComponent<RectTransform>();
+        rect.anchorMin = anchorMin;
+        rect.anchorMax = anchorMax;
+        rect.pivot = pivot;
+        rect.anchoredPosition = anchoredPosition;
+        rect.sizeDelta = sizeDelta;
+
+        TextMeshProUGUI text = textObject.GetComponent<TextMeshProUGUI>();
+        text.text = value;
+        text.fontSize = fontSize;
+        text.fontStyle = fontStyle;
+        text.color = color;
+        text.alignment = alignment;
+        text.textWrappingMode = TextWrappingModes.Normal;
+        text.font = TMP_Settings.defaultFontAsset;
+        return text;
+    }
+
+    private void AssignRuntimeChoices(List<BuffCardData> choices)
+    {
+        if (!HasRuntimeRewardUIBindings() || _runtimeChoices == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < _runtimeCardButtons.Length; i++)
+        {
+            BuffCardData choice = i < choices.Count ? choices[i] : null;
+            _runtimeChoices[i] = choice;
+
+            if (_runtimeCardButtons[i] != null)
+            {
+                _runtimeCardButtons[i].interactable = choice != null;
+            }
+
+            if (_runtimeCardNameTexts[i] != null)
+            {
+                _runtimeCardNameTexts[i].text = choice != null ? choice.cardName : "Locked";
+            }
+
+            if (_runtimeCardDescriptionTexts[i] != null)
+            {
+                _runtimeCardDescriptionTexts[i].text = choice != null ? choice.description : "No reward available for this slot.";
+            }
+        }
+    }
+
+    private void OnRuntimeCardChoiceSelected(int index)
+    {
+        if (_runtimeChoices == null || index < 0 || index >= _runtimeChoices.Length)
+        {
+            return;
+        }
+
+        BuffCardData card = _runtimeChoices[index];
+        if (card == null)
+        {
+            return;
+        }
+
+        SelectCard(card);
+    }
+
+    private bool ShouldGrantStageCardReward(LevelClearContext clearContext, bool calmClear)
+    {
+        if (clearContext.nodeId <= 0)
+        {
+            return false;
+        }
+
+        switch (stageCardRewardTrigger)
+        {
+            case StageCardRewardTriggerMode.AnyStageClear:
+                return true;
+            case StageCardRewardTriggerMode.CombatRoomClear:
+                return clearContext.reason == LevelClearReason.RoomEvaluated;
+            case StageCardRewardTriggerMode.CalmCombatRoomClear:
+                return clearContext.reason == LevelClearReason.RoomEvaluated && calmClear;
+            default:
+                return clearContext.reason == LevelClearReason.RoomEvaluated;
+        }
+    }
+
+    private List<BuffCardData> BuildWeightedCardChoices(int maxChoices, bool calmClear)
+    {
+        List<BuffCardData> choices = new List<BuffCardData>();
+        if (allAvailableCards == null || allAvailableCards.Length == 0 || maxChoices <= 0)
+        {
+            return choices;
+        }
+
+        List<BuffCardData> pool = allAvailableCards
+            .Where(card => card != null)
+            .Distinct()
+            .ToList();
+
+        while (choices.Count < maxChoices && pool.Count > 0)
+        {
+            BuffCardData selected = PickWeightedCard(pool, calmClear);
+            if (selected == null)
+            {
+                break;
+            }
+
+            choices.Add(selected);
+            pool.Remove(selected);
+        }
+
+        return choices;
+    }
+
+    private BuffCardData PickWeightedCard(List<BuffCardData> pool, bool calmClear)
+    {
+        if (pool == null || pool.Count == 0)
+        {
+            return null;
+        }
+
+        int totalWeight = 0;
+        for (int i = 0; i < pool.Count; i++)
+        {
+            totalWeight += GetCardObtainWeight(pool[i], calmClear);
+        }
+
+        if (totalWeight <= 0)
+        {
+            int fallbackIndex = UnityEngine.Random.Range(0, pool.Count);
+            return pool[fallbackIndex];
+        }
+
+        int roll = UnityEngine.Random.Range(0, totalWeight);
+        for (int i = 0; i < pool.Count; i++)
+        {
+            BuffCardData candidate = pool[i];
+            roll -= GetCardObtainWeight(candidate, calmClear);
+            if (roll < 0)
+            {
+                return candidate;
+            }
+        }
+
+        return pool[pool.Count - 1];
+    }
+
+    private int GetCardObtainWeight(BuffCardData card, bool calmClear)
+    {
+        if (card == null)
+        {
+            return 0;
+        }
+
+        int baseWeight = Mathf.Max(0, card.obtainWeight);
+        if (baseWeight == 0)
+        {
+            baseWeight = 1;
+        }
+
+        if (!calmClear)
+        {
+            return baseWeight;
+        }
+
+        return baseWeight + Mathf.Max(0, card.calmStateBonusWeight);
+    }
+
     private void EnsurePlayerManager()
     {
         if (playerManager == null)
         {
             playerManager = FindFirstObjectByType<PlayerManager>();
         }
+    }
+
+    private void StartFadeIn()
+    {
+        if (_fadeOutCoroutine != null)
+        {
+            StopCoroutine(_fadeOutCoroutine);
+            _fadeOutCoroutine = null;
+        }
+
+        if (_fadeInCoroutine != null)
+        {
+            StopCoroutine(_fadeInCoroutine);
+        }
+
+        _fadeInCoroutine = StartCoroutine(FadeInUI());
+    }
+
+    private void StartFadeOut()
+    {
+        if (_fadeInCoroutine != null)
+        {
+            StopCoroutine(_fadeInCoroutine);
+            _fadeInCoroutine = null;
+        }
+
+        if (_fadeOutCoroutine != null)
+        {
+            StopCoroutine(_fadeOutCoroutine);
+        }
+
+        _fadeOutCoroutine = StartCoroutine(FadeOutUI());
+    }
+
+    private void ForceCloseRewardScreenImmediate()
+    {
+        if (_fadeInCoroutine != null)
+        {
+            StopCoroutine(_fadeInCoroutine);
+            _fadeInCoroutine = null;
+        }
+
+        if (_fadeOutCoroutine != null)
+        {
+            StopCoroutine(_fadeOutCoroutine);
+            _fadeOutCoroutine = null;
+        }
+
+        if (rewardCanvasGroup != null)
+        {
+            rewardCanvasGroup.alpha = 0f;
+            rewardCanvasGroup.interactable = false;
+            rewardCanvasGroup.blocksRaycasts = false;
+        }
+
+        Time.timeScale = 1f;
+        _rewardScreenOpen = false;
+    }
+
+    private void HandleSceneUnloaded(Scene scene)
+    {
+        // Reward UI should never leak across scene transitions.
+        ForceCloseRewardScreenImmediate();
+    }
+
+    private void EnsureEventSystem()
+    {
+        EventSystem existing = FindFirstObjectByType<EventSystem>(FindObjectsInactive.Include);
+        if (existing != null)
+        {
+            return;
+        }
+
+        GameObject eventSystemObject = new GameObject("EventSystem (Runtime)");
+        eventSystemObject.transform.SetParent(transform, false);
+        eventSystemObject.AddComponent<EventSystem>();
+
+#if ENABLE_INPUT_SYSTEM
+        eventSystemObject.AddComponent<InputSystemUIInputModule>();
+#else
+        eventSystemObject.AddComponent<StandaloneInputModule>();
+#endif
     }
 }
