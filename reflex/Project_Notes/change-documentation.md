@@ -1,3 +1,33 @@
+## 2026-05-17 - Equipped Weapon Persistence Without Manual Weapon Lists
+
+### Summary
+Removed the dependency on manually filling `SaveManager.availableWeapons` to restore the equipped weapon from save data.
+
+### Files Affected
+- Assets/Scripts/Data/SaveManager.cs
+- Assets/Scripts/Combat/WeaponManager.cs
+
+### Systems Affected
+- Save/load equipped weapon restoration
+- Runtime weapon discovery
+
+### Gameplay Changes
+- Save restore now auto-discovers weapon references from:
+  - optional manual references (if present)
+  - current player weapon
+  - scene `WeaponPickup` references
+  - currently loaded `WeaponData` assets
+- Added pending-restore retry on scene load when a saved weapon is not yet available in memory.
+- Added `WeaponManager.EquipWeaponFromSave(...)` so save restoration can equip visuals/state without re-writing save data each apply.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing warning remains unrelated:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- If a saved weapon asset is not included/referenced in runtime content at all, restore will continue to log that the weapon cannot be resolved.
+
 ## 2026-05-17 - Temporary Game Over Compile Fix (CS0170)
 
 ### Summary

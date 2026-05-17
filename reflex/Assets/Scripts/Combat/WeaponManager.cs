@@ -49,10 +49,25 @@ public class WeaponManager : MonoBehaviour
 
     public void EquipWeapon(WeaponData newData)
     {
+        EquipWeaponInternal(newData, true);
+    }
+
+    public void EquipWeaponFromSave(WeaponData newData)
+    {
+        EquipWeaponInternal(newData, false);
+    }
+
+    private void EquipWeaponInternal(WeaponData newData, bool persistToSave)
+    {
+        if (newData == null)
+        {
+            return;
+        }
+
         // 1. Update the data reference in PlayerManager
         playerManager.weaponData = newData;
 
-        if (SaveManager.Instance != null)
+        if (persistToSave && SaveManager.Instance != null)
         {
             SaveManager.Instance.SetEquippedWeapon(newData.weaponName);
         }

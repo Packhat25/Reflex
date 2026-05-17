@@ -39,6 +39,7 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Buff cards now support run-persistent stacking with per-card stage duration (`buffDurationStages`).
 - Special buff cards now support one-pick-per-run locking and contradiction blocking (`blockedCards`), including Fleet foot vs Windrunner exclusivity.
 - Added a temporary runtime game-over summary overlay with run metrics and soul-essence calculation breakdown on player death.
+- Equipped-weapon restore no longer requires manually maintaining `SaveManager.availableWeapons`; runtime weapon discovery now resolves saved weapon names automatically.
 
 ## Active Priorities
 - Playtest full path: Lobby (start only) -> Floor 1 stage chain -> Floor 2 stage chain (no lobby return).
@@ -48,6 +49,7 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Validate gameplay feel in Unity Play Mode across multiple rooms.
 - Validate stage-duration expiration behavior for short-duration cards (for example Berserker Tempo).
 - Validate special-card contradiction filtering and one-time pick constraints across long runs.
+- Validate equipped-weapon persistence across full app restart without any manual weapon-list setup in inspector.
 - Tune floor scaling fields:
   - `enemyHealthPerFloorStep`
   - `enemyDamagePerFloorStep`
