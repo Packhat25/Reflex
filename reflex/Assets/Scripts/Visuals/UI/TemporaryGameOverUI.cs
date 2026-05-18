@@ -504,6 +504,11 @@ public class TemporaryLoadingUI : MonoBehaviour
     [Header("Startup")]
     [SerializeField] private bool showStartupShaderWarmup = true;
 
+    [Header("Shader Warmup")]
+    [SerializeField] private bool warmupShadersInPlayerBuilds = true;
+    [SerializeField] private bool warmupShadersInEditor = false;
+    [SerializeField] private bool logShaderWarmupFailures = true;
+
     [Header("Runtime Labels")]
     [SerializeField] private string loadingTitle = "LOADING";
     [SerializeField] private string loadingAssetsLabel = "Loading assets...";
@@ -639,13 +644,17 @@ public class TemporaryLoadingUI : MonoBehaviour
     {
         ResolveCanvasBindings();
         SetOverlayState(true);
-        UpdateOverlayText(loadingTitle, compilingShadersLabel);
-        SetProgress(0.15f);
+        bool shouldWarmupShaders = ShouldRunShaderWarmup();
+        UpdateOverlayText(loadingTitle, shouldWarmupShaders ? compilingShadersLabel : finalizingLabel);
+        SetProgress(shouldWarmupShaders ? 0.15f : 0.9f);
         yield return null;
 
-        Shader.WarmupAllShaders();
+        if (shouldWarmupShaders)
+        {
+            TryWarmupAllShaders();
+            UpdateOverlayText(loadingTitle, finalizingLabel);
+        }
 
-        UpdateOverlayText(loadingTitle, finalizingLabel);
         SetProgress(1f);
         yield return null;
         HideImmediate();
@@ -675,11 +684,15 @@ public class TemporaryLoadingUI : MonoBehaviour
             yield return null;
         }
 
-        UpdateOverlayText(loadingTitle, compilingShadersLabel);
-        SetProgress(0.86f);
-        yield return null;
+        bool shouldWarmupShaders = ShouldRunShaderWarmup();
+        if (shouldWarmupShaders)
+        {
+            UpdateOverlayText(loadingTitle, compilingShadersLabel);
+            SetProgress(0.86f);
+            yield return null;
 
-        Shader.WarmupAllShaders();
+            TryWarmupAllShaders();
+        }
 
         UpdateOverlayText(loadingTitle, finalizingLabel);
         SetProgress(0.94f);
@@ -694,6 +707,33 @@ public class TemporaryLoadingUI : MonoBehaviour
         SetProgress(1f);
         yield return null;
         HideImmediate();
+    }
+
+    private bool ShouldRunShaderWarmup()
+    {
+        if (Application.isEditor)
+        {
+            return warmupShadersInEditor;
+        }
+
+        return warmupShadersInPlayerBuilds;
+    }
+
+    private void TryWarmupAllShaders()
+    {
+        try
+        {
+            Shader.WarmupAllShaders();
+        }
+        catch (Exception exception)
+        {
+            if (!logShaderWarmupFailures)
+            {
+                return;
+            }
+
+            Debug.LogWarning($"{nameof(TemporaryLoadingUI)} shader warmup failed: {exception.Message}");
+        }
     }
 
     private void ResolveCanvasBindings()

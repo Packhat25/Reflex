@@ -3,12 +3,29 @@ using UnityEngine;
 
 public class EnemySpawner : MonoBehaviour
 {
+    [System.Serializable]
+    private struct EnemySpawnOption
+    {
+        public string label;
+        public GameObject prefab;
+        [Min(0f)] public float weight;
+        public bool exclusiveWave;
+    }
+
     [Header("Spawner Settings")]
     public GameObject enemyPrefab; // The blueprint to spawn
     public int spawnCount = 3; // How many enemies to spawn per wave
     public float spawnRadius = 5f; // How far from the spawner to place them
     public float spawnHeight = 0f; // Height offset for spawning enemies
     public float respawnDelay = 3f; // How long to wait after the entire wave is gone
+
+    [Header("Enemy Type Selection")]
+    [SerializeField] private bool randomizeEnemyTypes = true;
+    [SerializeField] private EnemySpawnOption[] enemySpawnOptions;
+    [SerializeField, Min(1)] private int exclusiveWaveBaseSpawnCount = 1;
+    [SerializeField, Min(1)] private int exclusiveWaveFloorStep = 3;
+    [SerializeField, Min(1)] private int exclusiveWaveSpawnCountCap = 4;
+    [SerializeField] private bool logSpawnSelections = true;
 
     [Header("Emotion Spawn Scaling")]
     public bool useEmotionSpawnCount = true;
@@ -99,6 +116,15 @@ public class EnemySpawner : MonoBehaviour
 
     private void SpawnWave()
     {
+        EnemySpawnOption selectedSpawnOption = SelectSpawnOption();
+        GameObject selectedEnemyPrefab = selectedSpawnOption.prefab;
+
+        if (selectedEnemyPrefab == null)
+        {
+            Debug.LogError($"{name}: EnemySpawner has no valid enemy prefab configured.");
+            return;
+        }
+
         _wavesSpawned++;
         _hasSpawnedWave = true;
         _currentEnemies.Clear();
@@ -108,14 +134,15 @@ public class EnemySpawner : MonoBehaviour
         _roomClearReported = false;
 
         int adjustedSpawnCount = GetEmotionAdjustedSpawnCount();
-        EmotionEngine.Instance.BeginRoom(this, spawnCount, adjustedSpawnCount);
+        int finalSpawnCount = GetSpawnCountForSelectedOption(selectedSpawnOption, adjustedSpawnCount);
+        EmotionEngine.Instance.BeginRoom(this, spawnCount, finalSpawnCount);
 
-        for (int i = 0; i < adjustedSpawnCount; i++)
+        for (int i = 0; i < finalSpawnCount; i++)
         {
             Vector3 offset = Random.insideUnitSphere * spawnRadius;
             offset.y = spawnHeight;  // Use the configurable spawn height
             Vector3 spawnPosition = transform.position + offset;
-            GameObject enemy = Instantiate(enemyPrefab, spawnPosition, transform.rotation);
+            GameObject enemy = Instantiate(selectedEnemyPrefab, spawnPosition, transform.rotation);
             Transform hitbox = enemy.transform.Find("Hurt Box");
             if (hitbox != null)
             {
@@ -125,7 +152,16 @@ public class EnemySpawner : MonoBehaviour
         }
 
         _timer = GetEmotionAdjustedRespawnDelay();
-        Debug.Log($"<color=green>SPAWNED WAVE OF {adjustedSpawnCount} ENEMIES ({EmotionDirector.Instance.CurrentDirective.strategy}); active spawners: {EmotionEngine.Instance.ActiveSpawnerCount}</color>");
+        string selectedEnemyName = GetSpawnOptionLabel(selectedSpawnOption);
+        int currentFloor = LevelRunManager.HasInstance ? Mathf.Max(1, LevelRunManager.Instance.CurrentFloor) : 1;
+
+        if (logSpawnSelections)
+        {
+            string waveMode = selectedSpawnOption.exclusiveWave ? "exclusive" : "standard";
+            Debug.Log($"<color=#9AE66E>{name}: spawned {finalSpawnCount}x {selectedEnemyName} ({waveMode}, floor {currentFloor})</color>");
+        }
+
+        Debug.Log($"<color=green>SPAWNED WAVE OF {finalSpawnCount} ENEMIES ({EmotionDirector.Instance.CurrentDirective.strategy}); active spawners: {EmotionEngine.Instance.ActiveSpawnerCount}</color>");
     }
 
     private void ResolveCurrentWaveEnd()
@@ -187,6 +223,93 @@ public class EnemySpawner : MonoBehaviour
         int floor = LevelRunManager.HasInstance ? Mathf.Max(1, LevelRunManager.Instance.CurrentFloor) : 1;
         float chance = additionalWaveChanceFloorOne + ((floor - 1) * additionalWaveChancePerFloor);
         return Mathf.Clamp(chance, 0f, Mathf.Clamp01(maxAdditionalWaveChance));
+    }
+
+    private EnemySpawnOption SelectSpawnOption()
+    {
+        EnemySpawnOption fallbackOption = CreateFallbackSpawnOption();
+        if (!randomizeEnemyTypes || enemySpawnOptions == null || enemySpawnOptions.Length == 0)
+        {
+            return fallbackOption;
+        }
+
+        float totalWeight = 0f;
+        EnemySpawnOption lastValidOption = fallbackOption;
+        bool hasValidOption = false;
+
+        for (int i = 0; i < enemySpawnOptions.Length; i++)
+        {
+            EnemySpawnOption option = enemySpawnOptions[i];
+            if (option.prefab == null || option.weight <= 0f)
+            {
+                continue;
+            }
+
+            totalWeight += option.weight;
+            lastValidOption = option;
+            hasValidOption = true;
+        }
+
+        if (!hasValidOption || totalWeight <= 0f)
+        {
+            return fallbackOption;
+        }
+
+        float roll = Random.value * totalWeight;
+        for (int i = 0; i < enemySpawnOptions.Length; i++)
+        {
+            EnemySpawnOption option = enemySpawnOptions[i];
+            if (option.prefab == null || option.weight <= 0f)
+            {
+                continue;
+            }
+
+            roll -= option.weight;
+            if (roll <= 0f)
+            {
+                return option;
+            }
+        }
+
+        return lastValidOption;
+    }
+
+    private EnemySpawnOption CreateFallbackSpawnOption()
+    {
+        return new EnemySpawnOption
+        {
+            label = enemyPrefab != null ? enemyPrefab.name : "Unassigned",
+            prefab = enemyPrefab,
+            weight = 1f,
+            exclusiveWave = false
+        };
+    }
+
+    private int GetSpawnCountForSelectedOption(EnemySpawnOption selectedOption, int adjustedSpawnCount)
+    {
+        int clampedAdjustedCount = Mathf.Max(1, adjustedSpawnCount);
+        if (!selectedOption.exclusiveWave)
+        {
+            return clampedAdjustedCount;
+        }
+
+        int currentFloor = LevelRunManager.HasInstance ? Mathf.Max(1, LevelRunManager.Instance.CurrentFloor) : 1;
+        int floorStep = Mathf.Max(1, exclusiveWaveFloorStep);
+        int maxExclusiveCount = Mathf.Max(exclusiveWaveBaseSpawnCount, exclusiveWaveSpawnCountCap);
+        int floorBonus = (currentFloor - 1) / floorStep;
+        int exclusiveCount = Mathf.Clamp(exclusiveWaveBaseSpawnCount + floorBonus, 1, maxExclusiveCount);
+
+        return Mathf.Clamp(exclusiveCount, 1, clampedAdjustedCount);
+    }
+
+    private string GetSpawnOptionLabel(EnemySpawnOption option)
+    {
+        if (!string.IsNullOrWhiteSpace(option.label))
+        {
+            return option.label.Trim();
+        }
+
+        return option.prefab != null ? option.prefab.name : "Unknown Enemy";
     }
 
     private int GetEmotionAdjustedSpawnCount()
