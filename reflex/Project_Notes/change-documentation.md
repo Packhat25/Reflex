@@ -1,3 +1,69 @@
+## 2026-05-18 - UI Manager Game Over Binding Fallback Fix
+
+### Summary
+Fixed the authored game-over screen refusing to show when one structured stat field did not match the exact hierarchy path expected by `InGameUIManager`.
+
+### Files Affected
+- Assets/Scripts/Visuals/UI/InGameUIManager.cs
+- Project_Notes/change-documentation.md
+
+### Systems Affected
+- Game-over canvas binding
+- Game-over summary stat population
+- Return-to-lobby button binding
+
+### Gameplay/UI Changes
+- Game-over binding now requires only the authored `Game Over Canvas` and a return button to show the screen.
+- Summary value fields are now discovered recursively by labelled parent object names instead of exact all-or-nothing paths.
+- Binding now tolerates whitespace in object names like `Reward ` and still populates available values.
+- Return to Lobby button lookup now searches descendants instead of requiring the button to be a direct child.
+
+### Build/Test
+- `dotnet build Assembly-CSharp.csproj -nologo` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Unity Editor Play Mode should be rerun to confirm the death screen appears and every displayed value updates on the authored canvas.
+
+## 2026-05-18 - Game Over Flow Moved Into UI Manager
+
+### Summary
+Removed the temporary game-over runtime UI path and moved death-screen ownership into `InGameUIManager`, using the authored `UI Manager` `Game Over Canvas` as the only game-over screen.
+
+### Files Affected
+- Assets/Scripts/Visuals/UI/InGameUIManager.cs
+- Assets/Scripts/Player/PlayerManager.cs
+- Assets/Scripts/Visuals/UI/TemporaryLoadingUI.cs
+- Assets/Scripts/Visuals/UI/TemporaryLoadingUI.cs.meta
+- Assets/Scripts/Visuals/UI/TemporaryGameOverUI.cs
+- Assets/Scripts/Visuals/UI/TemporaryGameOverUI.cs.meta
+- Assembly-CSharp.csproj
+- Project_Notes/current-project-status.md
+- Project_Notes/change-documentation.md
+
+### Systems Affected
+- In-game UI manager
+- Player death/game-over flow
+- Game-over summary stat binding
+- Return-to-lobby flow
+- Loading overlay script organization
+
+### Gameplay/UI Changes
+- `InGameUIManager` now observes `PlayerManager.PlayerDied`, pauses gameplay on death, populates the authored game-over stat fields, and shows the UI Manager child `Game Over Canvas`.
+- `PlayerManager.Die()` now delegates game-over presentation to `InGameUIManager` so death handling remains reliable even if event binding timing changes.
+- Return to Lobby now stays in the UI manager: it hides the authored game-over screen, resets player run state, optionally generates a fresh run, and loads `Lobby` through the loading overlay.
+- Removed the temporary runtime game-over canvas builder and canvas-view binding class.
+- Split the loading overlay into `TemporaryLoadingUI.cs` so scene loading behavior remains available without keeping the deleted game-over script file.
+
+### Build/Test
+- `dotnet build Assembly-CSharp.csproj -nologo` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Unity Editor Play Mode validation is still required for the death -> game-over -> Return to Lobby loop and final authored-screen visual spacing.
+
 ## 2026-05-18 - Enemy Tank Hitbox Auto-Binding + NullReference Fix
 
 ### Summary
@@ -207,6 +273,61 @@ Updated enemy spawners to pick enemy types per wave from a weighted pool (Ant, D
 
 ### Known Limitations
 - Unity Play Mode validation is still needed to confirm encounter feel and tank frequency pacing across full floor progression.
+
+## 2026-05-18 - Aggression Anti-Spike Pass (Sustained Bruteforce Qualification)
+
+### Summary
+Adjusted emotion scoring so aggression no longer spikes from one or two hits. Aggressive classification now requires sustained combat commitment (multiple enemies + repeated attacks over time), matching intended bruteforce behavior.
+
+### Files Affected
+- Assets/Scripts/AI/EmotionEngine.cs
+
+### Systems Affected
+- Emotion aggression score pacing
+- Early-room anti-spike behavior
+- Combat-only playstyle qualification (no puzzle dependency)
+
+### Gameplay Changes
+- Added sample-confidence blending for rate-based metrics:
+  - Early low-duration samples blend toward neutral instead of instantly scoring as high aggression.
+- Added aggression qualification gate:
+  - Requires progress across attacks, enemies encountered, enemies engaged, and combat window duration before aggression evidence is fully trusted.
+  - Qualification now uses an additional strict multiplicative gate so partial progress in one signal cannot overcompensate for weak commitment in others.
+- Added low-commitment burst cap:
+  - One/two-hit interactions with low engagement commitment are capped from reaching high aggression score (including multi-enemy scenes where most enemies are only encountered, not engaged).
+- Updated no-encounter fallbacks for initiative/engagement to neutral instead of aggressive.
+
+### Threshold Tightening
+- `aggressiveThreshold`: `0.61 -> 0.67`
+- `calmThreshold`: `0.41 -> 0.40`
+- `minimumEvidenceForChange`: `0.30 -> 0.42`
+
+### New Tuning Fields
+- `neutralRateScore`
+- `minimumAggressiveAttacks`
+- `minimumAggressiveEnemiesEncountered`
+- `minimumAggressiveEnemiesEngaged`
+- `minimumAggressiveWindowSeconds`
+- `earlyBurstAggressionCap`
+- `lowQualificationCalmBonus`
+
+### Default Qualification Retune
+- `minimumAggressiveAttacks`: `4 -> 7`
+- `minimumAggressiveEnemiesEncountered`: `2 -> 3`
+- `minimumAggressiveEnemiesEngaged`: `2 -> 3`
+- `minimumAggressiveWindowSeconds`: `10 -> 16`
+
+### Design Notes
+- Aggressive now maps to sustained pressure behavior (staying near groups and repeatedly committing attacks).
+- Calm/passive behavior (hit-and-run, waiting for openings, disengaging) remains valid without puzzle telemetry.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Final weights still need in-editor playtest tuning against different room densities and weapon cadences.
 
 ## 2026-05-18 - Emotion Playstyle Validity Refactor (Combat Commitment vs Avoidance)
 

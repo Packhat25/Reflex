@@ -236,6 +236,11 @@ public class PlayerManager : MonoBehaviour
         canAttack = false;
         EmotionEngine.Instance.RecordDeath();
         PlayerDied?.Invoke(this);
+        if (InGameUIManager.Instance != null)
+        {
+            InGameUIManager.Instance.ShowGameOver(this);
+        }
+
         Debug.Log("<color=red>Player is Dead</color>");
     }
 

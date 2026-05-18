@@ -107,8 +107,8 @@ public class EmotionEngine : MonoBehaviour
 
     [Header("Emotion State")]
     [SerializeField] private PlayerEmotionState startingEmotion = PlayerEmotionState.Calm;
-    [SerializeField, Range(0f, 1f)] private float aggressiveThreshold = 0.61f;
-    [SerializeField, Range(0f, 1f)] private float calmThreshold = 0.41f;
+    [SerializeField, Range(0f, 1f)] private float aggressiveThreshold = 0.67f;
+    [SerializeField, Range(0f, 1f)] private float calmThreshold = 0.40f;
     [SerializeField, Range(0f, 1f)] private float scoreSmoothing = 0.35f;
     [SerializeField, Range(0f, 1f)] private float aggressionRiseSmoothing = 0.18f;
     [SerializeField, Range(0f, 1f)] private float aggressionFallSmoothing = 0.42f;
@@ -143,7 +143,16 @@ public class EmotionEngine : MonoBehaviour
     [SerializeField] private float expectedRoomMovementSpeed = 4f;
     [SerializeField] private float expectedRoomDeaths = 1f;
     [SerializeField, Min(1f)] private float minimumRateSampleWindow = 12f;
-    [SerializeField] private float minimumEvidenceForChange = 0.3f;
+    [SerializeField, Range(0f, 1f)] private float neutralRateScore = 0.5f;
+    [SerializeField] private float minimumEvidenceForChange = 0.42f;
+
+    [Header("Aggression Qualification")]
+    [SerializeField, Min(1)] private int minimumAggressiveAttacks = 7;
+    [SerializeField, Min(1)] private int minimumAggressiveEnemiesEncountered = 3;
+    [SerializeField, Min(1)] private int minimumAggressiveEnemiesEngaged = 3;
+    [SerializeField, Min(2f)] private float minimumAggressiveWindowSeconds = 16f;
+    [SerializeField, Range(0f, 1f)] private float earlyBurstAggressionCap = 0.48f;
+    [SerializeField, Range(0f, 1f)] private float lowQualificationCalmBonus = 0.28f;
 
     [Header("Adaptive Spawning")]
     [SerializeField] private float aggressiveSpawnMultiplier = 1.35f;
@@ -785,7 +794,28 @@ public class EmotionEngine : MonoBehaviour
             (1f - _damagePressureScore) * 0.08f +
             (1f - tempoAggressionScore) * 0.07f;
 
-        return Mathf.Clamp01(aggressiveEvidence / Mathf.Max(0.0001f, aggressiveEvidence + calmEvidence));
+        float aggressionQualification = CalculateAggressionQualification(attacksPerformed, enemiesEncountered, enemiesEngaged, roomTime);
+        aggressiveEvidence *= aggressionQualification;
+        calmEvidence += (1f - aggressionQualification) * lowQualificationCalmBonus;
+
+        float score = aggressiveEvidence / Mathf.Max(0.0001f, aggressiveEvidence + calmEvidence);
+
+        float engagementRatio = enemiesEncountered > 0
+            ? (float)enemiesEngaged / enemiesEncountered
+            : 1f;
+
+        bool isLowCommitmentBurst =
+            attacksPerformed <= 2 &&
+            effectiveEnemyHits <= 2.2f &&
+            roomTime <= minimumAggressiveWindowSeconds &&
+            (enemiesEngaged <= 1 || engagementRatio <= 0.45f);
+
+        if (isLowCommitmentBurst)
+        {
+            score = Mathf.Min(score, earlyBurstAggressionCap);
+        }
+
+        return Mathf.Clamp01(score);
     }
 
     private float CalculateMovementScore(float averageSpeed, float timeRunning, float timeIdle, float expectedMovementSpeed)
@@ -806,17 +836,26 @@ public class EmotionEngine : MonoBehaviour
         }
 
         float minWindow = Mathf.Max(1f, minimumRateSampleWindow);
-        float safeObservedTime = Mathf.Max(minWindow, observedTime);
+        float safeObservedTime = Mathf.Max(0.05f, observedTime);
         float actualRate = Mathf.Max(0f, value) / safeObservedTime;
         float expectedRate = expectedValue / expectedClearTime;
-        return SafeRatio(actualRate, expectedRate);
+        float rawRateScore = SafeRatio(actualRate, expectedRate);
+
+        if (observedTime <= 0f)
+        {
+            return Mathf.Clamp01(neutralRateScore);
+        }
+
+        float confidenceStart = Mathf.Max(0.25f, minWindow * 0.35f);
+        float sampleConfidence = Mathf.InverseLerp(confidenceStart, minWindow, observedTime);
+        return Mathf.Lerp(Mathf.Clamp01(neutralRateScore), rawRateScore, sampleConfidence);
     }
 
     private float CalculateInitiativeScore(int attacksPerformed, int enemiesEncountered)
     {
         if (enemiesEncountered <= 0)
         {
-            return attacksPerformed > 0 ? 1f : 0.5f;
+            return Mathf.Clamp01(neutralRateScore);
         }
 
         float attacksPerEncounter = (float)attacksPerformed / enemiesEncountered;
@@ -828,10 +867,33 @@ public class EmotionEngine : MonoBehaviour
     {
         if (enemiesEncountered <= 0)
         {
-            return attacksPerformed > 0 ? 1f : 0.5f;
+            return Mathf.Clamp01(neutralRateScore);
         }
 
         return Mathf.Clamp01((float)Mathf.Max(0, enemiesEngaged) / enemiesEncountered);
+    }
+
+    private float CalculateAggressionQualification(int attacksPerformed, int enemiesEncountered, int enemiesEngaged, float roomTime)
+    {
+        float minimumTime = Mathf.Max(2f, minimumAggressiveWindowSeconds);
+        float attackProgress = Mathf.InverseLerp(Mathf.Max(1f, minimumAggressiveAttacks * 0.5f), minimumAggressiveAttacks, attacksPerformed);
+        float encounterProgress = Mathf.InverseLerp(1f, Mathf.Max(1, minimumAggressiveEnemiesEncountered), enemiesEncountered);
+        float engagedProgress = Mathf.InverseLerp(1f, Mathf.Max(1, minimumAggressiveEnemiesEngaged), enemiesEngaged);
+        float timeProgress = Mathf.InverseLerp(minimumTime * 0.35f, minimumTime, roomTime);
+
+        float weightedQualification = Mathf.Clamp01(
+            attackProgress * 0.36f +
+            encounterProgress * 0.24f +
+            engagedProgress * 0.24f +
+            timeProgress * 0.16f);
+
+        float strictGate =
+            attackProgress *
+            Mathf.Lerp(0.25f, 1f, encounterProgress) *
+            Mathf.Lerp(0.25f, 1f, engagedProgress) *
+            Mathf.Lerp(0.30f, 1f, timeProgress);
+
+        return Mathf.Clamp01(weightedQualification * strictGate);
     }
 
     private float CalculateCombatCommitmentScore(float attackVolumeScore, float initiativeScore, float engagementScore, float hitConversionScore)

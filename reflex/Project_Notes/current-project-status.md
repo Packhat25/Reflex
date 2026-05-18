@@ -47,19 +47,19 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Emotion scoring now uses rate-normalized evidence with explicit combat-commitment vs avoidance modeling to map aggressive/bruteforce and calm/deliberate playstyles more directly.
 - Emotion confidence now follows a decision-window evidence model (45s target) to reduce state flips from isolated spikes.
 - Emotion telemetry now distinguishes enemies encountered vs enemies engaged, improving calm/avoidant classification without puzzle signals.
+- Aggression anti-spike qualification is now active: one/two-hit single-enemy bursts are capped, and high aggression now requires sustained multi-enemy combat commitment.
+- Aggression strictness was increased again: higher aggressive-entry threshold + higher confidence requirement + stricter qualification defaults for attacks/enemies/time.
 - Upgrade station is now scene-authored in `Lobby` (not runtime-spawned), with interaction collider and visible mesh.
 - HP bar startup sync now initializes both green/red fill correctly at lobby start when HP is full.
 - Buff cards now support run-persistent stacking with per-card stage duration (`buffDurationStages`).
 - Special buff cards now support one-pick-per-run locking and contradiction blocking (`blockedCards`), including Fleet foot vs Windrunner exclusivity.
 - RewardManager singleton ownership now prioritizes scene-authored instances over bootstrap fallback, so Lobby-configured inspector card pools are used reliably.
-- Added a temporary runtime game-over summary overlay with run metrics and soul-essence calculation breakdown on player death.
+- Game-over summary, death pause, and Return to Lobby flow now live in `InGameUIManager`.
 - Equipped-weapon restore no longer requires manually maintaining `SaveManager.availableWeapons`; runtime weapon discovery now resolves saved weapon names automatically.
-- Game-over screen now supports scene-authored Canvas binding through `TemporaryGameOverCanvasView`, enabling direct in-editor layout/design iteration.
-- Game-over UI now auto-binds the authored `UI Manager` `Game Over Canvas` (even without manual canvas-view component wiring), restores readable authored typography, and populates each summary value field directly.
-- Game-over flow now includes a Return to Lobby button (authored-canvas and runtime fallback), with optional fresh-run regeneration on return.
+- Game-over UI now auto-binds and uses the authored `UI Manager` `Game Over Canvas`, restoring readable authored typography and populating each summary value field directly.
+- Game-over flow now includes a Return to Lobby button on the authored screen, with optional fresh-run regeneration on return.
 - Return-to-lobby from game-over now performs a full respawn reset (clears in-run card buffs and revives player state) before loading Lobby.
-- Runtime game-over canvas now consumes the new `Assets/Sprites/UI` Game Over art set (Background/Header/Statistics Rect) with sprite-aware fallback binding.
-- Runtime game-over text layout now matches the target reference composition (white compact title, readable two-column stats, text-first Return to Lobby) and TMP face-color override prevents black-on-black text.
+- Removed the runtime game-over canvas fallback; the authored UI Manager game-over screen is now the single game-over presentation path.
 - Added a temporary loading overlay system for scene transitions and shader warmup, with authored-canvas bindings (`TemporaryLoadingCanvasView`) plus runtime fallback canvas generation.
 - Loading overlay shader warmup is now Editor-safe by default (full shader warmup disabled in Editor, still configurable and available for player builds).
 - Added `WeaponManager.HitboxOn()` combo-index safety guards to prevent post-reset animation-event `IndexOutOfRangeException` crashes.
@@ -80,7 +80,7 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Validate stage-duration expiration behavior for short-duration cards (for example Berserker Tempo).
 - Validate special-card contradiction filtering and one-time pick constraints across long runs.
 - Validate equipped-weapon persistence across full app restart without any manual weapon-list setup in inspector.
-- Validate authored game-over canvas readability/spacing across target resolutions now that structured per-field binding is active.
+- Validate authored UI Manager game-over canvas readability/spacing across target resolutions now that structured per-field binding is active.
 - Validate death -> Return to Lobby -> immediate re-entry loop for state correctness (movement/attack enabled, HP full, no lingering dead state).
 - Validate loading overlay behavior across Lobby -> stage, stage -> stage, and game-over -> Lobby transitions (asset-load progress, shader warmup text states, and hide timing).
 - Author and style a dedicated scene canvas using `TemporaryLoadingCanvasView` for final loading-screen visuals.
@@ -129,6 +129,14 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
   - `expectedAttacksPerEncounter`
   - `expectedDecisionWindowSeconds`
   - `minimumRateSampleWindow`
+- Tune anti-spike qualification fields:
+  - `neutralRateScore`
+  - `minimumAggressiveAttacks`
+  - `minimumAggressiveEnemiesEncountered`
+  - `minimumAggressiveEnemiesEngaged`
+  - `minimumAggressiveWindowSeconds`
+  - `earlyBurstAggressionCap`
+  - `lowQualificationCalmBonus`
 
 ## Remaining Tasks
 - Decide whether boss cadence should remain fixed at every 3 floors or be moved into profile/runtime tuning.
@@ -137,7 +145,7 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Validate that calm state remains stable during slower, low-engagement clears.
 - Validate that room pacing remains readable at high spawn density.
 - Confirm enemy containment behavior still feels intentional under blended values.
-- Verify authored game-over canvas field mapping and formatting in Unity Play Mode after death/return loops.
+- Verify authored UI Manager game-over canvas field mapping and formatting in Unity Play Mode after death/return loops.
 
 ## Known Bugs
 - Existing warning persists: `PlayerMovementManagement.isSprinting` is never assigned.
@@ -151,6 +159,6 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Buff-card balance tuning and contradiction-rule coverage.
 
 ## Testing Status
-- Build test: pass (`dotnet build reflex.sln`).
+- Build test: pass (`dotnet build Assembly-CSharp.csproj -nologo`).
 - Runtime gameplay test: pending (Unity Editor Play Mode).
 
