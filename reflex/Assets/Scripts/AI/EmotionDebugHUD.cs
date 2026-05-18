@@ -98,8 +98,8 @@ public class EmotionDebugHUD : MonoBehaviour
         GUILayout.Label("Score Factors", _mutedStyle);
         DrawLine($"Damage pressure: {snapshot.damagePressureScore:0.00}");
         DrawLine($"Combat intent: {snapshot.combatIntentScore:0.00}");
-        DrawLine($"Movement pressure: {snapshot.movementPressureScore:0.00}");
-        DrawLine($"Time pressure: {snapshot.timePressureScore:0.00}");
+        DrawLine($"Movement aggression: {snapshot.movementPressureScore:0.00}");
+        DrawLine($"Tempo aggression (fast clear): {snapshot.timePressureScore:0.00}");
         GUILayout.Space(6f);
 
         GUILayout.Label("Director", _mutedStyle);
@@ -117,7 +117,7 @@ public class EmotionDebugHUD : MonoBehaviour
         GUILayout.Label("Live totals", _mutedStyle);
         DrawLine($"Damage taken: {snapshot.damageTaken:0.0}");
         DrawLine($"Deaths: {snapshot.deathCount}");
-        DrawLine($"Enemies seen: {snapshot.enemiesEncountered}");
+        DrawLine($"Enemies seen / engaged: {snapshot.enemiesEncountered} / {snapshot.enemiesEngaged}");
         DrawLine($"Attacks / hits: {snapshot.attacksPerformed} / {snapshot.enemyHits}");
         DrawLine($"Effective hits: {snapshot.effectiveEnemyHits:0.00}");
         DrawLine($"Running / idle: {snapshot.timeRunning:0.0}s / {snapshot.timeIdle:0.0}s");
@@ -139,7 +139,7 @@ public class EmotionDebugHUD : MonoBehaviour
             DrawLine($"Spawners: {lastRoom.spawnerCount}");
             DrawLine($"Spawns: {lastRoom.baseSpawnCount} -> {lastRoom.adjustedSpawnCount}");
             DrawLine($"Damage / deaths: {lastRoom.damageTaken:0.0} / {lastRoom.deathCount}");
-            DrawLine($"Seen / attacks / hits: {lastRoom.enemiesEncountered} / {lastRoom.attacksPerformed} / {lastRoom.enemyHits}");
+            DrawLine($"Seen / engaged / attacks / hits: {lastRoom.enemiesEncountered} / {lastRoom.enemiesEngaged} / {lastRoom.attacksPerformed} / {lastRoom.enemyHits}");
             DrawLine($"Move / idle: {lastRoom.timeRunning:0.0}s / {lastRoom.timeIdle:0.0}s");
         }
 

@@ -22,6 +22,7 @@ public struct EmotionProfileSnapshot
     public float damageTaken;
     public int deathCount;
     public int enemiesEncountered;
+    public int enemiesEngaged;
     public int attacksPerformed;
     public int enemyHits;
     public float effectiveEnemyHits;
@@ -48,6 +49,7 @@ public struct EmotionRoomReport
     public float damageTaken;
     public int deathCount;
     public int enemiesEncountered;
+    public int enemiesEngaged;
     public int attacksPerformed;
     public int enemyHits;
     public float effectiveEnemyHits;
@@ -130,6 +132,8 @@ public class EmotionEngine : MonoBehaviour
     [SerializeField] private float expectedAverageMovementSpeed = 5f;
     [SerializeField] private float expectedRoomClearTime = 120f;
     [SerializeField] private float expectedDeaths = 2f;
+    [SerializeField, Min(0.1f)] private float expectedAttacksPerEncounter = 2.25f;
+    [SerializeField, Min(5f)] private float expectedDecisionWindowSeconds = 45f;
 
     [Header("Recent Behavior Tuning")]
     [SerializeField, Range(0f, 1f)] private float recentBehaviorWeight = 0.62f;
@@ -138,6 +142,7 @@ public class EmotionEngine : MonoBehaviour
     [SerializeField] private float expectedRoomAttacks = 10f;
     [SerializeField] private float expectedRoomMovementSpeed = 4f;
     [SerializeField] private float expectedRoomDeaths = 1f;
+    [SerializeField, Min(1f)] private float minimumRateSampleWindow = 12f;
     [SerializeField] private float minimumEvidenceForChange = 0.3f;
 
     [Header("Adaptive Spawning")]
@@ -168,6 +173,7 @@ public class EmotionEngine : MonoBehaviour
     public int ActiveSpawnerCount => _activeRoomContributors.Count;
 
     private readonly HashSet<int> _encounteredEnemyIds = new HashSet<int>();
+    private readonly HashSet<int> _engagedEnemyIds = new HashSet<int>();
     private readonly Dictionary<int, ActiveRoomContributor> _activeRoomContributors = new Dictionary<int, ActiveRoomContributor>();
     private float _damageTaken;
     private int _deathCount;
@@ -388,6 +394,11 @@ public class EmotionEngine : MonoBehaviour
 
     public void RecordEnemyHit(float damage)
     {
+        RecordEnemyHit(damage, null);
+    }
+
+    public void RecordEnemyHit(float damage, EnemyController enemy)
+    {
         if (!IsRoomActive)
         {
             return;
@@ -399,6 +410,10 @@ public class EmotionEngine : MonoBehaviour
         }
 
         _enemyHits++;
+        if (enemy != null)
+        {
+            _engagedEnemyIds.Add(enemy.GetInstanceID());
+        }
         _lastCombatIntentTime = Time.time;
         _effectiveEnemyHits += CalculateEffectiveHitContribution();
         _lastEnemyHitTime = Time.time;
@@ -446,6 +461,7 @@ public class EmotionEngine : MonoBehaviour
     public void ResetProfile()
     {
         _encounteredEnemyIds.Clear();
+        _engagedEnemyIds.Clear();
         _damageTaken = 0f;
         _deathCount = 0;
         _attacksPerformed = 0;
@@ -604,6 +620,7 @@ public class EmotionEngine : MonoBehaviour
             damageTaken = _damageTaken - _roomStartSnapshot.damageTaken,
             deathCount = _deathCount - _roomStartSnapshot.deathCount,
             enemiesEncountered = _encounteredEnemyIds.Count - _roomStartSnapshot.enemiesEncountered,
+            enemiesEngaged = _engagedEnemyIds.Count - _roomStartSnapshot.enemiesEngaged,
             attacksPerformed = _attacksPerformed - _roomStartSnapshot.attacksPerformed,
             enemyHits = _enemyHits - _roomStartSnapshot.enemyHits,
             effectiveEnemyHits = _effectiveEnemyHits - _roomStartSnapshot.effectiveEnemyHits,
@@ -671,12 +688,13 @@ public class EmotionEngine : MonoBehaviour
             _damageTaken,
             _deathCount,
             _encounteredEnemyIds.Count,
+            _engagedEnemyIds.Count,
             _attacksPerformed,
             _effectiveEnemyHits,
             GetAverageMovementSpeed(),
             _timeRunning,
             _timeIdle,
-            GetRoomTimeForScoring(),
+            GetLifetimeTrackedTimeForScoring(),
             expectedDamageTaken,
             expectedDeaths,
             expectedEnemyEncounters,
@@ -689,6 +707,7 @@ public class EmotionEngine : MonoBehaviour
             recentSnapshot.damageTaken,
             recentSnapshot.deathCount,
             recentSnapshot.enemiesEncountered,
+            recentSnapshot.enemiesEngaged,
             recentSnapshot.attacksPerformed,
             recentSnapshot.effectiveEnemyHits,
             recentSnapshot.averageMovementSpeed,
@@ -720,6 +739,7 @@ public class EmotionEngine : MonoBehaviour
         float damageTaken,
         int deathCount,
         int enemiesEncountered,
+        int enemiesEngaged,
         int attacksPerformed,
         float effectiveEnemyHits,
         float averageMovementSpeed,
@@ -733,40 +753,128 @@ public class EmotionEngine : MonoBehaviour
         float expectedMovementSpeed,
         float expectedClearTime)
     {
-        float damageScore = SafeRatio(damageTaken, expectedDamage);
-        float encounterScore = SafeRatio(enemiesEncountered, expectedEncounters);
-        float attackScore = Mathf.Clamp01(SafeRatio(attacksPerformed, expectedAttackCount) * attackIntentScale);
+        float damagePressureScore = CalculateRateScore(damageTaken, roomTime, expectedDamage, expectedClearTime);
+        float deathPressureScore = CalculateRateScore(deathCount, roomTime, expectedDeathCount, expectedClearTime);
+        float encounterPressureScore = CalculateRateScore(enemiesEncountered, roomTime, expectedEncounters, expectedClearTime);
+        float attackVolumeScore = CalculateRateScore(attacksPerformed, roomTime, expectedAttackCount, expectedClearTime);
         float rawHitScore = attacksPerformed <= 0 ? 0f : Mathf.Clamp01(effectiveEnemyHits / attacksPerformed);
-        float hitScore = Mathf.Clamp01(rawHitScore * hitIntentScale);
-        float movementScore = CalculateMovementScore(averageMovementSpeed, timeRunning, timeIdle, expectedMovementSpeed);
-        float roomTimeScore = SafeRatio(roomTime, expectedClearTime);
-        float deathScore = SafeRatio(deathCount, expectedDeathCount);
+        float hitConversionScore = Mathf.Clamp01(rawHitScore * hitIntentScale);
+        float initiativeScore = CalculateInitiativeScore(attacksPerformed, enemiesEncountered);
+        float engagementScore = CalculateEngagementScore(enemiesEncountered, enemiesEngaged, attacksPerformed);
+        float combatCommitmentScore = CalculateCombatCommitmentScore(attackVolumeScore, initiativeScore, engagementScore, hitConversionScore);
+        float movementAggressionScore = CalculateMovementScore(averageMovementSpeed, timeRunning, timeIdle, expectedMovementSpeed);
+        float tempoAggressionScore = CalculateTempoAggressionScore(roomTime, expectedClearTime);
+        float calmAvoidanceScore = CalculateCalmAvoidanceScore(engagementScore, initiativeScore, timeRunning, timeIdle, damagePressureScore, tempoAggressionScore);
 
-        _damagePressureScore = Mathf.Clamp01((damageScore * 0.75f) + (deathScore * 0.25f));
-        _combatIntentScore = Mathf.Clamp01((encounterScore * 0.4f) + (attackScore * 0.4f) + (hitScore * 0.2f));
-        _movementPressureScore = movementScore;
-        _timePressureScore = roomTimeScore;
+        _damagePressureScore = Mathf.Clamp01((damagePressureScore * 0.72f) + (deathPressureScore * 0.28f));
+        _combatIntentScore = combatCommitmentScore;
+        _movementPressureScore = movementAggressionScore;
+        _timePressureScore = tempoAggressionScore;
 
-        float weightedScore =
-            damageScore * 0.22f +
-            encounterScore * 0.16f +
-            attackScore * 0.18f +
-            hitScore * 0.08f +
-            movementScore * 0.14f +
-            roomTimeScore * 0.12f +
-            deathScore * 0.10f;
+        float aggressiveEvidence =
+            _damagePressureScore * 0.20f +
+            encounterPressureScore * 0.12f +
+            combatCommitmentScore * 0.33f +
+            movementAggressionScore * 0.20f +
+            tempoAggressionScore * 0.15f;
 
-        return Mathf.Clamp01(weightedScore);
+        float calmEvidence =
+            calmAvoidanceScore * 0.55f +
+            (1f - combatCommitmentScore) * 0.20f +
+            (1f - encounterPressureScore) * 0.10f +
+            (1f - _damagePressureScore) * 0.08f +
+            (1f - tempoAggressionScore) * 0.07f;
+
+        return Mathf.Clamp01(aggressiveEvidence / Mathf.Max(0.0001f, aggressiveEvidence + calmEvidence));
     }
 
     private float CalculateMovementScore(float averageSpeed, float timeRunning, float timeIdle, float expectedMovementSpeed)
     {
         float speedScore = SafeRatio(averageSpeed, expectedMovementSpeed);
-        float trackedTime = Mathf.Max(0.01f, timeRunning + timeIdle);
+        float trackedTime = GetTrackedTime(timeRunning, timeIdle);
         float runningRatio = Mathf.Clamp01(timeRunning / trackedTime);
         float idleRatio = Mathf.Clamp01(timeIdle / trackedTime);
 
         return Mathf.Clamp01((speedScore * 0.5f) + (runningRatio * 0.35f) + ((1f - idleRatio) * 0.15f));
+    }
+
+    private float CalculateRateScore(float value, float observedTime, float expectedValue, float expectedClearTime)
+    {
+        if (expectedValue <= 0f || expectedClearTime <= 0f)
+        {
+            return 0f;
+        }
+
+        float minWindow = Mathf.Max(1f, minimumRateSampleWindow);
+        float safeObservedTime = Mathf.Max(minWindow, observedTime);
+        float actualRate = Mathf.Max(0f, value) / safeObservedTime;
+        float expectedRate = expectedValue / expectedClearTime;
+        return SafeRatio(actualRate, expectedRate);
+    }
+
+    private float CalculateInitiativeScore(int attacksPerformed, int enemiesEncountered)
+    {
+        if (enemiesEncountered <= 0)
+        {
+            return attacksPerformed > 0 ? 1f : 0.5f;
+        }
+
+        float attacksPerEncounter = (float)attacksPerformed / enemiesEncountered;
+        float initiativeScore = SafeRatio(attacksPerEncounter, Mathf.Max(0.1f, expectedAttacksPerEncounter));
+        return Mathf.Clamp01(initiativeScore * attackIntentScale);
+    }
+
+    private float CalculateEngagementScore(int enemiesEncountered, int enemiesEngaged, int attacksPerformed)
+    {
+        if (enemiesEncountered <= 0)
+        {
+            return attacksPerformed > 0 ? 1f : 0.5f;
+        }
+
+        return Mathf.Clamp01((float)Mathf.Max(0, enemiesEngaged) / enemiesEncountered);
+    }
+
+    private float CalculateCombatCommitmentScore(float attackVolumeScore, float initiativeScore, float engagementScore, float hitConversionScore)
+    {
+        return Mathf.Clamp01(
+            attackVolumeScore * 0.28f +
+            initiativeScore * 0.32f +
+            engagementScore * 0.25f +
+            hitConversionScore * 0.15f);
+    }
+
+    private float CalculateTempoAggressionScore(float roomTime, float expectedClearTime)
+    {
+        if (roomTime <= 0f || expectedClearTime <= 0f)
+        {
+            return 0.5f;
+        }
+
+        float clearRatio = Mathf.Clamp01(roomTime / expectedClearTime);
+        return 1f - clearRatio;
+    }
+
+    private float CalculateCalmAvoidanceScore(
+        float engagementScore,
+        float initiativeScore,
+        float timeRunning,
+        float timeIdle,
+        float damagePressureScore,
+        float tempoAggressionScore)
+    {
+        float trackedTime = GetTrackedTime(timeRunning, timeIdle);
+        float idleRatio = Mathf.Clamp01(timeIdle / trackedTime);
+        float lowEngagementScore = 1f - Mathf.Clamp01(engagementScore);
+        float lowInitiativeScore = 1f - Mathf.Clamp01(initiativeScore);
+        float lowDamageScore = 1f - damagePressureScore;
+        float slowTempoScore = 1f - tempoAggressionScore;
+
+        return Mathf.Clamp01(
+            lowEngagementScore * 0.50f +
+            lowInitiativeScore * 0.20f +
+            idleRatio * 0.20f +
+            slowTempoScore * 0.07f +
+            lowDamageScore * 0.03f);
     }
 
     private EmotionProfileSnapshot GetRecentBehaviorSnapshot()
@@ -796,6 +904,7 @@ public class EmotionEngine : MonoBehaviour
             damageTaken = _damageTaken - _roomStartSnapshot.damageTaken,
             deathCount = _deathCount - _roomStartSnapshot.deathCount,
             enemiesEncountered = _encounteredEnemyIds.Count - _roomStartSnapshot.enemiesEncountered,
+            enemiesEngaged = _engagedEnemyIds.Count - _roomStartSnapshot.enemiesEngaged,
             attacksPerformed = _attacksPerformed - _roomStartSnapshot.attacksPerformed,
             enemyHits = _enemyHits - _roomStartSnapshot.enemyHits,
             effectiveEnemyHits = _effectiveEnemyHits - _roomStartSnapshot.effectiveEnemyHits,
@@ -817,6 +926,7 @@ public class EmotionEngine : MonoBehaviour
             damageTaken = report.damageTaken,
             deathCount = report.deathCount,
             enemiesEncountered = report.enemiesEncountered,
+            enemiesEngaged = report.enemiesEngaged,
             attacksPerformed = report.attacksPerformed,
             enemyHits = report.enemyHits,
             effectiveEnemyHits = report.effectiveEnemyHits,
@@ -836,22 +946,38 @@ public class EmotionEngine : MonoBehaviour
 
     private float CalculateConfidence(EmotionProfileSnapshot recentSnapshot)
     {
-        float actionEvidence = SafeRatio(recentSnapshot.attacksPerformed + recentSnapshot.effectiveEnemyHits, expectedRoomAttacks);
+        float roomTime = GetRecentRoomTimeForScoring(recentSnapshot);
+        float activityTime = recentSnapshot.timeRunning + recentSnapshot.timeIdle;
+        float durationEvidence = SafeRatio(roomTime > 0f ? roomTime : activityTime, Mathf.Max(5f, expectedDecisionWindowSeconds));
         float encounterEvidence = SafeRatio(recentSnapshot.enemiesEncountered, expectedRoomEnemyEncounters);
+        float attackEvidence = SafeRatio(recentSnapshot.attacksPerformed, expectedRoomAttacks);
+        float combatEvidence = SafeRatio(
+            recentSnapshot.attacksPerformed + recentSnapshot.effectiveEnemyHits,
+            Mathf.Max(1f, expectedRoomAttacks + expectedRoomEnemyEncounters));
+        float engagementEvidence = recentSnapshot.enemiesEncountered <= 0
+            ? (recentSnapshot.attacksPerformed > 0 ? 1f : 0f)
+            : SafeRatio(recentSnapshot.enemiesEngaged, recentSnapshot.enemiesEncountered);
         float damageEvidence = SafeRatio(recentSnapshot.damageTaken, expectedRoomDamageTaken);
-        float movementEvidence = SafeRatio(recentSnapshot.timeRunning + recentSnapshot.timeIdle, 20f);
-        float roomEvidence = recentSnapshot.lastRoomClearTime > 0f ? 1f : SafeRatio(recentSnapshot.currentRoomTime, 30f);
+        float movementEvidence = SafeRatio(activityTime, Mathf.Max(10f, expectedDecisionWindowSeconds * 0.75f));
 
         return Mathf.Clamp01(
-            actionEvidence * 0.25f +
-            encounterEvidence * 0.2f +
-            damageEvidence * 0.2f +
-            movementEvidence * 0.2f +
-            roomEvidence * 0.15f);
+            durationEvidence * 0.26f +
+            encounterEvidence * 0.16f +
+            attackEvidence * 0.14f +
+            combatEvidence * 0.16f +
+            engagementEvidence * 0.12f +
+            movementEvidence * 0.12f +
+            damageEvidence * 0.04f);
     }
 
-    private float GetRoomTimeForScoring()
+    private float GetLifetimeTrackedTimeForScoring()
     {
+        float trackedTime = _timeRunning + _timeIdle;
+        if (trackedTime > 0f)
+        {
+            return trackedTime;
+        }
+
         if (_lastRoomClearTime > 0f)
         {
             return _lastRoomClearTime;
@@ -868,6 +994,11 @@ public class EmotionEngine : MonoBehaviour
         }
 
         return _movementSpeedTotal / _movementSamples;
+    }
+
+    private float GetTrackedTime(float timeRunning, float timeIdle)
+    {
+        return Mathf.Max(0.01f, timeRunning + timeIdle);
     }
 
     private float SafeRatio(float value, float expectedValue)
@@ -1014,6 +1145,7 @@ public class EmotionEngine : MonoBehaviour
         if (factor < 1f)
         {
             _encounteredEnemyIds.Clear();
+            _engagedEnemyIds.Clear();
         }
     }
 
@@ -1032,6 +1164,7 @@ public class EmotionEngine : MonoBehaviour
             damageTaken = _damageTaken,
             deathCount = _deathCount,
             enemiesEncountered = _encounteredEnemyIds.Count,
+            enemiesEngaged = _engagedEnemyIds.Count,
             attacksPerformed = _attacksPerformed,
             enemyHits = _enemyHits,
             effectiveEnemyHits = _effectiveEnemyHits,

@@ -44,6 +44,9 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Emotion telemetry now rebases on combat floor entry with stale-room cleanup to keep updates reliable across progression.
 - Emotion telemetry/evaluation writes are now combat-only to prevent out-of-combat score drift.
 - Forgiveness profile was tightened after over-calm feedback.
+- Emotion scoring now uses rate-normalized evidence with explicit combat-commitment vs avoidance modeling to map aggressive/bruteforce and calm/deliberate playstyles more directly.
+- Emotion confidence now follows a decision-window evidence model (45s target) to reduce state flips from isolated spikes.
+- Emotion telemetry now distinguishes enemies encountered vs enemies engaged, improving calm/avoidant classification without puzzle signals.
 - Upgrade station is now scene-authored in `Lobby` (not runtime-spawned), with interaction collider and visible mesh.
 - HP bar startup sync now initializes both green/red fill correctly at lobby start when HP is full.
 - Buff cards now support run-persistent stacking with per-card stage duration (`buffDurationStages`).
@@ -54,6 +57,7 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Game-over screen now supports scene-authored Canvas binding through `TemporaryGameOverCanvasView`, enabling direct in-editor layout/design iteration.
 - Game-over flow now includes a Return to Lobby button (authored-canvas and runtime fallback), with optional fresh-run regeneration on return.
 - Return-to-lobby from game-over now performs a full respawn reset (clears in-run card buffs and revives player state) before loading Lobby.
+- Added a temporary loading overlay system for scene transitions and shader warmup, with authored-canvas bindings (`TemporaryLoadingCanvasView`) plus runtime fallback canvas generation.
 - Added `WeaponManager.HitboxOn()` combo-index safety guards to prevent post-reset animation-event `IndexOutOfRangeException` crashes.
 - Enemy spawners now support floor-scaled additional wave sequencing with queued-wave tracking via `HasUpcomingWave`.
 - Room clear now defers while upcoming waves are queued, preventing premature stage clear and buff-card reward flow.
@@ -74,6 +78,8 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Design and iterate the authored game-over canvas visual style/spacing/typography now that the runtime hook is in place.
 - Wire and style the authored Return to Lobby button in the final UI prefab/canvas for production polish.
 - Validate death -> Return to Lobby -> immediate re-entry loop for state correctness (movement/attack enabled, HP full, no lingering dead state).
+- Validate loading overlay behavior across Lobby -> stage, stage -> stage, and game-over -> Lobby transitions (asset-load progress, shader warmup text states, and hide timing).
+- Author and style a dedicated scene canvas using `TemporaryLoadingCanvasView` for final loading-screen visuals.
 - Validate attack animation events immediately after respawn/death transitions to confirm no invalid combo-step event fires.
 - Tune floor scaling fields:
   - `enemyHealthPerFloorStep`
@@ -115,10 +121,16 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
   - `aggressiveThreshold` / `calmThreshold`
   - `attackIntentScale` / `hitIntentScale`
   - `calmDecayDelay` / `calmDecayPerSecond`
+- Tune playstyle validity fields:
+  - `expectedAttacksPerEncounter`
+  - `expectedDecisionWindowSeconds`
+  - `minimumRateSampleWindow`
 
 ## Remaining Tasks
 - Decide whether boss cadence should remain fixed at every 3 floors or be moved into profile/runtime tuning.
 - Playtest calm-to-aggressive transitions and aggressive-to-calm recovery.
+- Validate that aggressive state now comes from sustained combat commitment (attack volume + attacks-per-encounter), not isolated events.
+- Validate that calm state remains stable during slower, low-engagement clears.
 - Validate that room pacing remains readable at high spawn density.
 - Confirm enemy containment behavior still feels intentional under blended values.
 - Replace temporary runtime game-over overlay with final authored UI design once art/UI pass is ready.
@@ -137,3 +149,4 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 ## Testing Status
 - Build test: pass (`dotnet build reflex.sln`).
 - Runtime gameplay test: pending (Unity Editor Play Mode).
+

@@ -260,7 +260,7 @@ public class WeaponManager : MonoBehaviour
                 // 3. Pass it to the hurtbox (Update your ReceiveDamage signature to accept this)
                 enemyHurtbox.ReceiveDamage(finalDamage, attackStunDuration, finalKnockbackVector);
                 
-                EmotionEngine.Instance.RecordEnemyHit(finalDamage);
+                EmotionEngine.Instance.RecordEnemyHit(finalDamage, enemyHurtbox.enemyController);
 
                 if (hitSparkPrefab != null)
                 {

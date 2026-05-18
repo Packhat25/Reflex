@@ -373,7 +373,10 @@ public class LevelRunManager : MonoBehaviour
         }
 
         _pendingNodeId = destination.id;
-        SceneManager.LoadScene(destination.sceneName, LoadSceneMode.Single);
+        if (!TemporaryLoadingUI.LoadSceneWithOverlay(destination.sceneName, LoadSceneMode.Single))
+        {
+            SceneManager.LoadScene(destination.sceneName, LoadSceneMode.Single);
+        }
     }
 
     private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
@@ -1292,7 +1295,10 @@ public class LevelRunManager : MonoBehaviour
             Debug.Log("Advancing to Floor " + CurrentFloor + " starting at stage 1 (" + nextFloorStart.sceneName + ").");
         }
 
-        SceneManager.LoadScene(nextFloorStart.sceneName, LoadSceneMode.Single);
+        if (!TemporaryLoadingUI.LoadSceneWithOverlay(nextFloorStart.sceneName, LoadSceneMode.Single))
+        {
+            SceneManager.LoadScene(nextFloorStart.sceneName, LoadSceneMode.Single);
+        }
     }
 
     private void AddConnection(GeneratedLevelNode source, int destinationNodeId)
