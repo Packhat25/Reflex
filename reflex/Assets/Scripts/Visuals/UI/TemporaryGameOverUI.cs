@@ -4,19 +4,34 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 public class TemporaryGameOverUI : MonoBehaviour
 {
     private static TemporaryGameOverUI _instance;
     private const string DefaultLobbySceneName = "Lobby";
+    private const string GameOverBackgroundAssetPath = "Assets/Sprites/UI/GameOver Background.png";
+    private const string GameOverHeaderAssetPath = "Assets/Sprites/UI/Game Over Header.png";
+    private const string GameOverStatsAssetPath = "Assets/Sprites/UI/Game Over Statistics Rect.png";
+    private const string GameOverBackgroundResourcePath = "UI/GameOver Background";
+    private const string GameOverHeaderResourcePath = "UI/Game Over Header";
+    private const string GameOverStatsResourcePath = "UI/Game Over Statistics Rect";
 
     [Header("Navigation")]
     [SerializeField] private string lobbySceneName = DefaultLobbySceneName;
     [SerializeField] private bool generateFreshRunOnReturn = true;
 
+    [Header("Game Over Art (Optional Overrides)")]
+    [SerializeField] private Sprite gameOverBackgroundSprite;
+    [SerializeField] private Sprite gameOverHeaderSprite;
+    [SerializeField] private Sprite gameOverStatisticsSprite;
+
     private PlayerManager _observedPlayer;
     private TemporaryGameOverCanvasView _authoredCanvasView;
     private CanvasGroup _canvasGroup;
+    private TextMeshProUGUI _titleText;
     private TextMeshProUGUI _detailsText;
     private Button _returnToLobbyButton;
     private bool _isShowing;
@@ -43,6 +58,7 @@ public class TemporaryGameOverUI : MonoBehaviour
 
         _instance = this;
         DontDestroyOnLoad(gameObject);
+        EnsureGameOverSprites();
         ResolveCanvasBindings();
     }
 
@@ -126,23 +142,11 @@ public class TemporaryGameOverUI : MonoBehaviour
             summary = runSummary;
         }
 
-        int otherEssence = Mathf.Max(0, summary.totalEssenceEarned - summary.stageRewardEssence - summary.composureBonusEssence);
-        _detailsText.text =
-            "GAME OVER\n\n" +
-            $"Runtime: {FormatRuntime(summary.runtimeSeconds)}\n" +
-            $"Floor Cleared: {summary.floorReached}\n" +
-            $"Stage Cleared: {summary.stageReached}\n" +
-            $"Enemies Killed: {summary.enemiesDefeated}\n\n" +
-            $"Total Soul Essence Earned: {summary.totalEssenceEarned}\n" +
-            "Calculation:\n" +
-            $"- Kill Essence: {summary.enemiesDefeated} x {summary.essencePerKill} = {summary.rawKillEssence}\n" +
-            $"- Base Clear Essence: {summary.rawBaseEssence}\n" +
-            $"- Floor Depth Essence: {summary.rawFloorEssence}\n" +
-            $"- Raw Subtotal: {summary.rawEssenceBeforeMultipliers}\n" +
-            $"- Effective Run Multiplier: x{summary.effectiveCombinedMultiplier:0.00}\n" +
-            $"- Stage Reward Total: {summary.stageRewardEssence}\n" +
-            $"- Composure Bonus: {summary.composureBonusEssence}\n" +
-            $"- Other Bonus Sources: {otherEssence}";
+        _detailsText.text = BuildSummaryDetailsText(summary);
+        if (_titleText != null)
+        {
+            _titleText.text = "GAME OVER";
+        }
 
         _canvasGroup.alpha = 1f;
         _canvasGroup.interactable = true;
@@ -198,6 +202,28 @@ public class TemporaryGameOverUI : MonoBehaviour
             : runTime.ToString(@"mm\:ss");
     }
 
+    private string BuildSummaryDetailsText(RunRewardSummary summary)
+    {
+        int otherEssence = Mathf.Max(0, summary.totalEssenceEarned - summary.stageRewardEssence - summary.composureBonusEssence);
+        int stagesCleared = Mathf.Max(summary.stagesCleared, summary.stageReached);
+        int floorsCleared = Mathf.Max(0, summary.floorReached);
+
+        return
+            $"{FormatTwoColumn($"Run time :{FormatRuntime(summary.runtimeSeconds)}", $"Stages Cleared :{stagesCleared}")}\n" +
+            $"{FormatTwoColumn($"Floors Cleared :{floorsCleared}", $"Enemies Killed: {summary.enemiesDefeated}")}\n\n" +
+            "<align=center>Soul Essence Calculation</align>\n\n" +
+            $"{FormatTwoColumn($"Kill Essence :{summary.rawKillEssence}", $"Run Multiplier :x{summary.effectiveCombinedMultiplier:0.00}")}\n" +
+            $"{FormatTwoColumn($"Base Clear :{summary.rawBaseEssence}", $"Reward Total:{summary.stageRewardEssence}")}\n" +
+            $"{FormatTwoColumn($"Floor Depth:{summary.rawFloorEssence}", $"Composure Bonus :{summary.composureBonusEssence}")}\n" +
+            $"{FormatTwoColumn($"Raw Subtotal:{summary.rawEssenceBeforeMultipliers}", $"Other Bonus :{otherEssence}")}\n\n" +
+            $"<align=center>Soul Essence Earned :{summary.totalEssenceEarned}</align>";
+    }
+
+    private string FormatTwoColumn(string left, string right)
+    {
+        return $"{left,-34}{right}";
+    }
+
     private void ResolveCanvasBindings()
     {
         if (TryBindAuthoredCanvas())
@@ -215,6 +241,7 @@ public class TemporaryGameOverUI : MonoBehaviour
             if (_authoredCanvasView.TryGetBindings(out CanvasGroup group, out TextMeshProUGUI details, out Button returnButton))
             {
                 _canvasGroup = group;
+                _titleText = null;
                 _detailsText = details;
                 BindReturnToLobbyButton(returnButton);
                 _authoredCanvasView.HideImmediate();
@@ -236,6 +263,7 @@ public class TemporaryGameOverUI : MonoBehaviour
 
         _authoredCanvasView = discoveredView;
         _canvasGroup = discoveredGroup;
+        _titleText = null;
         _detailsText = discoveredDetails;
         BindReturnToLobbyButton(discoveredReturnButton);
         _authoredCanvasView.HideImmediate();
@@ -248,6 +276,8 @@ public class TemporaryGameOverUI : MonoBehaviour
         {
             return;
         }
+
+        EnsureGameOverSprites();
 
         GameObject canvasObject = new GameObject(
             "Temporary Game Over Canvas",
@@ -281,51 +311,96 @@ public class TemporaryGameOverUI : MonoBehaviour
         canvasRect.offsetMin = Vector2.zero;
         canvasRect.offsetMax = Vector2.zero;
 
-        CreateImage("Dim", canvasRect, new Color(0f, 0f, 0f, 0.86f), Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, Vector2.one * 0.5f);
-        RectTransform panel = CreateImage("Panel", canvasRect, new Color(0.08f, 0.08f, 0.1f, 0.98f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1000f, 760f), Vector2.one * 0.5f);
+        CreateImage(
+            "Background Art",
+            canvasRect,
+            gameOverBackgroundSprite != null ? Color.white : new Color(0.05f, 0.05f, 0.07f, 1f),
+            Vector2.zero,
+            Vector2.one,
+            Vector2.zero,
+            Vector2.zero,
+            Vector2.one * 0.5f,
+            gameOverBackgroundSprite,
+            true);
+
+        CreateImage(
+            "Dim",
+            canvasRect,
+            new Color(0f, 0f, 0f, 0.45f),
+            Vector2.zero,
+            Vector2.one,
+            Vector2.zero,
+            Vector2.zero,
+            Vector2.one * 0.5f);
+
+        RectTransform panel = CreateImage(
+            "Statistics Panel",
+            canvasRect,
+            gameOverStatisticsSprite != null ? Color.white : new Color(0.1f, 0.1f, 0.14f, 0.97f),
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0f, -18f),
+            new Vector2(1060f, 680f),
+            Vector2.one * 0.5f,
+            gameOverStatisticsSprite,
+            true);
+
+        _titleText = CreateText(
+            "Title",
+            panel,
+            "GAME OVER",
+            46f,
+            FontStyles.Bold,
+            new Color(0.98f, 0.98f, 0.98f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0f, -82f),
+            new Vector2(760f, 74f),
+            new Vector2(0.5f, 0.5f),
+            TextAlignmentOptions.Center);
 
         _detailsText = CreateText(
             "Details",
             panel,
-            "GAME OVER",
-            34f,
-            FontStyles.Bold,
-            new Color(0.98f, 0.98f, 0.98f, 1f),
-            new Vector2(0.5f, 0.5f),
-            new Vector2(0.5f, 0.5f),
-            Vector2.zero,
-            new Vector2(920f, 690f),
-            new Vector2(0.5f, 0.5f),
+            string.Empty,
+            18f,
+            FontStyles.Normal,
+            new Color(0.97f, 0.97f, 0.97f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0f, -140f),
+            new Vector2(920f, 470f),
+            new Vector2(0.5f, 1f),
             TextAlignmentOptions.TopLeft);
 
         RectTransform buttonRect = CreateImage(
             "Return To Lobby Button",
             panel,
-            new Color(0.2f, 0.28f, 0.45f, 1f),
+            new Color(1f, 1f, 1f, 0f),
             new Vector2(0.5f, 0f),
             new Vector2(0.5f, 0f),
-            new Vector2(0f, 58f),
-            new Vector2(360f, 72f),
+            new Vector2(0f, -54f),
+            new Vector2(420f, 72f),
             new Vector2(0.5f, 0.5f));
 
         Button button = buttonRect.gameObject.AddComponent<Button>();
         ColorBlock colors = button.colors;
-        colors.normalColor = Color.white;
-        colors.highlightedColor = new Color(0.92f, 0.95f, 1f, 1f);
-        colors.pressedColor = new Color(0.8f, 0.85f, 1f, 1f);
+        colors.normalColor = new Color(1f, 1f, 1f, 0f);
+        colors.highlightedColor = new Color(1f, 1f, 1f, 0.15f);
+        colors.pressedColor = new Color(1f, 1f, 1f, 0.25f);
         button.colors = colors;
 
         CreateText(
             "Label",
             buttonRect,
             "Return To Lobby",
-            30f,
+            18f,
             FontStyles.Bold,
-            new Color(0.95f, 0.98f, 1f, 1f),
+            new Color(0.98f, 0.98f, 0.98f, 1f),
             new Vector2(0.5f, 0.5f),
             new Vector2(0.5f, 0.5f),
             Vector2.zero,
-            new Vector2(340f, 56f),
+            new Vector2(390f, 56f),
             new Vector2(0.5f, 0.5f),
             TextAlignmentOptions.Center);
 
@@ -379,6 +454,33 @@ public class TemporaryGameOverUI : MonoBehaviour
         }
     }
 
+    private void EnsureGameOverSprites()
+    {
+        gameOverBackgroundSprite = ResolveSprite(gameOverBackgroundSprite, GameOverBackgroundResourcePath, GameOverBackgroundAssetPath);
+        gameOverHeaderSprite = ResolveSprite(gameOverHeaderSprite, GameOverHeaderResourcePath, GameOverHeaderAssetPath);
+        gameOverStatisticsSprite = ResolveSprite(gameOverStatisticsSprite, GameOverStatsResourcePath, GameOverStatsAssetPath);
+    }
+
+    private Sprite ResolveSprite(Sprite current, string resourcePath, string editorAssetPath)
+    {
+        if (current != null)
+        {
+            return current;
+        }
+
+        Sprite fromResources = Resources.Load<Sprite>(resourcePath);
+        if (fromResources != null)
+        {
+            return fromResources;
+        }
+
+#if UNITY_EDITOR
+        return AssetDatabase.LoadAssetAtPath<Sprite>(editorAssetPath);
+#else
+        return null;
+#endif
+    }
+
     private RectTransform CreateImage(
         string name,
         RectTransform parent,
@@ -387,7 +489,9 @@ public class TemporaryGameOverUI : MonoBehaviour
         Vector2 anchorMax,
         Vector2 anchoredPosition,
         Vector2 sizeDelta,
-        Vector2 pivot)
+        Vector2 pivot,
+        Sprite sprite = null,
+        bool preserveAspect = false)
     {
         GameObject imageObject = new GameObject(name, typeof(RectTransform), typeof(Image));
         imageObject.transform.SetParent(parent, false);
@@ -400,6 +504,8 @@ public class TemporaryGameOverUI : MonoBehaviour
 
         Image image = imageObject.GetComponent<Image>();
         image.color = color;
+        image.sprite = sprite;
+        image.preserveAspect = preserveAspect;
         return rect;
     }
 
@@ -431,8 +537,10 @@ public class TemporaryGameOverUI : MonoBehaviour
         text.fontSize = fontSize;
         text.fontStyle = fontStyle;
         text.color = color;
+        text.faceColor = color;
         text.alignment = alignment;
         text.textWrappingMode = TextWrappingModes.Normal;
+        text.lineSpacing = 3f;
         text.font = TMP_Settings.defaultFontAsset;
         return text;
     }

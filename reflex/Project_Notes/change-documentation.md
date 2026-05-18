@@ -1,3 +1,83 @@
+## 2026-05-18 - Game Over Runtime Layout Match Pass (Reference Image Alignment)
+
+### Summary
+Adjusted the runtime game-over canvas layout and text styling to match the target reference screen: compact white title text, readable in-panel stats, and a text-first Return to Lobby button under the panel.
+
+### Files Affected
+- Assets/Scripts/Visuals/UI/TemporaryGameOverUI.cs
+
+### Systems Affected
+- Game-over runtime UI composition
+- Run-summary text rendering/readability
+- TMP runtime text material behavior
+
+### Gameplay/UI Changes
+- Removed runtime use of the red `Game Over Header` sprite for the title block (this sprite rendered as oversized red header text).
+- Added a dedicated runtime title text (`GAME OVER`) in white to match target composition.
+- Reworked summary body formatting into two-column lines that mirror the reference layout:
+  - Runtime / Stages Cleared
+  - Floors Cleared / Enemies Killed
+  - Soul Essence Calculation block
+  - Centered final `Soul Essence Earned`
+- Reduced runtime body font size and adjusted panel content bounds so all lines stay inside the stats frame.
+- Updated Return to Lobby to a text-forward style with transparent button background, positioned below the panel.
+- Forced TMP `faceColor` per runtime text instance to resolve black text caused by the project default TMP material face color being black.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Final pixel-perfect tuning still requires in-editor Play Mode review on your target aspect ratios.
+
+## 2026-05-18 - Game Over UI Asset Integration (Background/Header/Stats)
+
+### Summary
+Replaced the plain temporary runtime game-over styling with the new authored Game Over art assets from `Assets/Sprites/UI`, while preserving existing game-over logic and button flow.
+
+### Files Affected
+- Assets/Scripts/Visuals/UI/TemporaryGameOverUI.cs
+- Assets/Sprites/UI/GameOver Background.png.meta
+- Assets/Sprites/UI/Game Over Header.png.meta
+- Assets/Sprites/UI/Game Over Statistics Rect.png.meta
+
+### Systems Affected
+- Game-over runtime overlay presentation
+- UI sprite import pipeline for new game-over assets
+
+### Gameplay/UI Changes
+- `TemporaryGameOverUI` runtime canvas now uses:
+  - `GameOver Background`
+  - `Game Over Header`
+  - `Game Over Statistics Rect`
+- Added optional sprite override fields in `TemporaryGameOverUI` for quick inspector customization.
+- Added safe sprite resolution flow:
+  - uses assigned inspector sprite when present
+  - falls back to `Resources.Load(...)` lookup
+  - in Editor, falls back to `AssetDatabase.LoadAssetAtPath(...)` for direct project asset loading
+- Updated temporary runtime layout to include:
+  - full-screen background art layer
+  - dim layer for readability
+  - centered statistics panel art
+  - header art block
+  - existing Return to Lobby button and run-summary text content
+
+### Import Settings Changes
+- Converted new Game Over textures to UI sprites:
+  - `textureType: Sprite (2D and UI)` (`textureType: 8`)
+  - `spriteMode: Single` (`spriteMode: 1`)
+  - `alphaIsTransparency: true`
+  - mipmaps disabled for cleaner UI rendering
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Runtime visual validation in Unity Play Mode is still required to finalize scale/spacing against target resolution variants.
+
 ## 2026-05-18 - Editor-Safe Shader Warmup Guard (Loading Overlay)
 
 ### Summary
