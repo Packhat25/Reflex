@@ -1201,11 +1201,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: e48e7c7c97b12e04a85267b3999861be, type: 3}
---- !u!225 &175896646 stripped
-CanvasGroup:
-  m_CorrespondingSourceObject: {fileID: 3481752186341634788, guid: 0d3fd65e01edf3c4190ea8710bc76f94, type: 3}
-  m_PrefabInstance: {fileID: 1887291276}
-  m_PrefabAsset: {fileID: 0}
 --- !u!4 &179580102 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 3138846644805708758, guid: e48e7c7c97b12e04a85267b3999861be, type: 3}
@@ -7602,7 +7597,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6143834829870852885, guid: 7c568165dea999542b4dcb8a7407bb21, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 54.349724
+      value: 47.6
       objectReference: {fileID: 0}
     - target: {fileID: 6143834829870852885, guid: 7c568165dea999542b4dcb8a7407bb21, type: 3}
       propertyPath: m_LocalPosition.y
@@ -7610,7 +7605,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6143834829870852885, guid: 7c568165dea999542b4dcb8a7407bb21, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 25.105179
+      value: 38.7
       objectReference: {fileID: 0}
     - target: {fileID: 6143834829870852885, guid: 7c568165dea999542b4dcb8a7407bb21, type: 3}
       propertyPath: m_LocalRotation.w
@@ -7639,6 +7634,10 @@ PrefabInstance:
     - target: {fileID: 6143834829870852885, guid: 7c568165dea999542b4dcb8a7407bb21, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7172733118274079555, guid: 7c568165dea999542b4dcb8a7407bb21, type: 3}
+      propertyPath: spawnCount
+      value: 7
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -9471,7 +9470,7 @@ Transform:
   m_GameObject: {fileID: 1321345633}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -3.16, y: 2.88, z: -20.09}
+  m_LocalPosition: {x: -3.16, y: 2.88, z: -24.95}
   m_LocalScale: {x: 15, y: 4.58, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -18427,7 +18426,7 @@ PrefabInstance:
     - target: {fileID: 8793081262805777523, guid: 0d3fd65e01edf3c4190ea8710bc76f94, type: 3}
       propertyPath: PauseUICanvasGroup
       value: 
-      objectReference: {fileID: 175896646}
+      objectReference: {fileID: 0}
     - target: {fileID: 8793081262805777523, guid: 0d3fd65e01edf3c4190ea8710bc76f94, type: 3}
       propertyPath: inGameUICanvasGroup
       value: 
