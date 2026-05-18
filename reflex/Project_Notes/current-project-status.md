@@ -57,6 +57,8 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Special buff cards now support one-pick-per-run locking and contradiction blocking (`blockedCards`), including Fleet foot vs Windrunner exclusivity.
 - RewardManager singleton ownership now prioritizes scene-authored instances over bootstrap fallback, so Lobby-configured inspector card pools are used reliably.
 - Game-over summary, death pause, and Return to Lobby flow now live in `InGameUIManager`.
+- Death flow now isolates telemetry/subscriber failures and has an emergency game-over UI fallback if authored canvas binding fails.
+- Game-over visibility now explicitly activates the authored inactive `Game Over Canvas` GameObject before showing it.
 - Equipped-weapon restore no longer requires manually maintaining `SaveManager.availableWeapons`; runtime weapon discovery now resolves saved weapon names automatically.
 - Game-over UI now auto-binds and uses the authored `UI Manager` `Game Over Canvas`, restoring readable authored typography and populating each summary value field directly.
 - Game-over flow now includes a Return to Lobby button on the authored screen, with optional fresh-run regeneration on return.
@@ -66,11 +68,13 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Loading overlay shader warmup is now Editor-safe by default (full shader warmup disabled in Editor, still configurable and available for player builds).
 - Added `WeaponManager.HitboxOn()` combo-index safety guards to prevent post-reset animation-event `IndexOutOfRangeException` crashes.
 - Player weapon hitbox debug visuals are now hidden by default during attacks while hit detection still uses the same overlap box.
+- Dash pass-through collision cleanup now skips stale/prefab/unloaded-scene colliders so death or scene unload after dashing cannot crash in `Physics.IgnoreCollision()`.
 - Enemy spawners now support floor-scaled additional wave sequencing with queued-wave tracking via `HasUpcomingWave`.
 - Room clear now defers while upcoming waves are queued, preventing premature stage clear and buff-card reward flow.
 - Shared spawn prefabs now use weighted random enemy-type waves (Ant/Drone/Tank), with tank as a lower-chance exclusive wave that scales count by floor.
 - Main Menu is now the build startup scene and has hooked Play, Settings, and Quit buttons.
 - Temporary loading overlay no longer forces global shader warmup by default in player builds, preventing the Main Menu startup crash where `Compiling shaders...` remained on top before the app exited.
+- Trap hazard indicators no longer allocate `MaterialPropertyBlock` in a `MonoBehaviour` field initializer, fixing Visual Scripting AOT pre-build errors.
 - Pause-menu Return to Menu now clears pause state and loads the authored Main Menu scene.
 - Pause-menu Settings now opens a frontmost music settings overlay with an in-panel close button, mute toggle, and volume controls for the persistent background music.
 - Background music mute/volume preferences now persist through `PlayerPrefs`.
@@ -91,6 +95,12 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Validate equipped-weapon persistence across full app restart without any manual weapon-list setup in inspector.
 - Validate authored UI Manager game-over canvas readability/spacing across target resolutions now that structured per-field binding is active.
 - Validate death -> Return to Lobby -> immediate re-entry loop for state correctness (movement/attack enabled, HP full, no lingering dead state).
+- Validate death/game-over crash guard:
+  - Lethal enemy and trap damage reaches `PlayerManager.Die()`.
+  - Authored Game Over Canvas appears.
+  - Authored Game Over Canvas is active/visible even though the prefab starts inactive.
+  - Emergency fallback appears if authored bindings are intentionally broken.
+  - Return-to-lobby button remains interactable.
 - Validate player startup HP in rebuilt player:
   - Lobby player starts above zero HP before gameplay input.
   - First combat scene starts with full upgraded max HP.
@@ -117,6 +127,10 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Validate weapon attacks in Unity Play Mode:
   - Hitbox debug cube/wireframe stays hidden during swings.
   - Enemies still receive damage from the same attack range.
+- Validate dash cleanup in rebuilt player:
+  - Dash through enemies, then die during/after dash.
+  - Dash through enemies, then transition scenes.
+  - No `Physics.IgnoreCollision()` prefab-asset collider crash appears.
 - Validate player immortality debug toggle in Unity Play Mode:
   - Pressing `=` toggles `isImmortal`.
   - Incoming damage is ignored while immortality is enabled.
@@ -186,7 +200,7 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Existing warning persists: `PlayerMovementManagement.isSprinting` is never assigned.
 
 ## Known Blockers
-- Unity player rebuild/run validation is still needed after the shader warmup and player HP startup guards.
+- Unity player rebuild/run validation is still needed after the shader warmup, player HP startup, trap indicator, and death-flow guards.
 
 ## Systems In Progress
 - Level flow validation and scene progression polish.
