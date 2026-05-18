@@ -1660,6 +1660,32 @@ Fixed a regression where reward cards could fail to appear after entering later 
 ### Known Limitations
 - Unity Play Mode verification is still required to confirm expected popup cadence across full multi-stage and multi-floor traversal.
 
+## 2026-05-18 - Glass Cannon Behavior Update (Double Deal / Double Receive)
+
+### Summary
+Replaced Glass Cannon behavior so it no longer reduces player max HP. The card now applies double outgoing damage and double incoming damage.
+
+### Files Affected
+- Assets/Scripts/Player/PlayerManager.cs
+
+### Systems Affected
+- Temporary card buff application
+- Player damage dealt calculation
+- Player incoming damage handling
+
+### Gameplay Changes
+- `MaxHealth` no longer depends on any Glass Cannon HP modifier.
+- Glass Cannon now sets:
+  - incoming damage multiplier = `2.0`
+  - outgoing damage multiplier = `2.0`
+- Incoming damage logging/emotion telemetry now records the final multiplied damage value.
+- Clearing temporary card buffs resets Glass Cannon multipliers back to `1.0`.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing warning remains unrelated:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
 ## 2026-05-17 - Weapon Equipped State Persistence
 
 ### Summary

@@ -45,17 +45,18 @@ public class PlayerManager : MonoBehaviour
 
     [Header("Runtime Health")]
     public float currentHealth;
-    private float glassCannonHPModifier = 1f; // Used for the Glass Cannon card
+    private float glassCannonDamageTakenMultiplier = 1f;
+    private float glassCannonDamageDealtMultiplier = 1f;
     private bool hasInitializedHealthUI;
 
 
     // --- ADDITIVE CALCULATIONS ---
     
-    // Max Health: (Base + Permanent + Card) / Glass Cannon Penalty
-    public float MaxHealth => (stats.baseMaxHealth + permanentMaxHPBonus) * glassCannonHPModifier;
+    // Max Health: Base + permanent upgrades
+    public float MaxHealth => stats.baseMaxHealth + permanentMaxHPBonus;
 
-    // Damage Multiplier: 1 + Base + Permanent + Card
-    public float TotalDamageMultiplier => 1f + stats.baseDamageMultiplier + permanentAtkBonus + cardAtkBonus;
+    // Damage Multiplier: additive base bonuses, then Glass Cannon rule multiplier
+    public float TotalDamageMultiplier => (1f + stats.baseDamageMultiplier + permanentAtkBonus + cardAtkBonus) * glassCannonDamageDealtMultiplier;
 
     // Crit Chance: Base (0.05) + Permanent + Card
     public float FinalCritChance => 0.05f + permanentCritBonus + cardCritChance;
@@ -125,8 +126,9 @@ public class PlayerManager : MonoBehaviour
         if (isDead || isImmortal) return;
         if (!ignoreInvulnerability && !isVulnerable) return;
 
-        currentHealth -= amount;
-        EmotionEngine.Instance.RecordDamageTaken(amount);
+        float finalIncomingDamage = amount * glassCannonDamageTakenMultiplier;
+        currentHealth -= finalIncomingDamage;
+        EmotionEngine.Instance.RecordDamageTaken(finalIncomingDamage);
         Debug.Log($"HP: {currentHealth}/{MaxHealth}");
 
         if (currentHealth <= 0)
@@ -222,7 +224,8 @@ public class PlayerManager : MonoBehaviour
         cardComboWindowBonus = 0f;
         cardDashCDReduction = 0f;
         cardDashDistanceBonus = 0f;
-        glassCannonHPModifier = 1f;
+        glassCannonDamageTakenMultiplier = 1f;
+        glassCannonDamageDealtMultiplier = 1f;
     }
 
     private void Die()
@@ -276,9 +279,8 @@ public class PlayerManager : MonoBehaviour
 
     public void ApplyGlassCannon()
     {
-        glassCannonHPModifier = 0.5f; // Halve health
-        cardAtkBonus += 0.5f;        // Huge damage boost
-        currentHealth = Mathf.Min(currentHealth, MaxHealth);
+        glassCannonDamageTakenMultiplier = 2f;
+        glassCannonDamageDealtMultiplier = 2f;
     }
 
     private void TryInitializeHealthUI()
