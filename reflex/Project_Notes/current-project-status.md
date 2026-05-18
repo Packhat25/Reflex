@@ -51,6 +51,8 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - RewardManager singleton ownership now prioritizes scene-authored instances over bootstrap fallback, so Lobby-configured inspector card pools are used reliably.
 - Added a temporary runtime game-over summary overlay with run metrics and soul-essence calculation breakdown on player death.
 - Equipped-weapon restore no longer requires manually maintaining `SaveManager.availableWeapons`; runtime weapon discovery now resolves saved weapon names automatically.
+- Game-over screen now supports scene-authored Canvas binding through `TemporaryGameOverCanvasView`, enabling direct in-editor layout/design iteration.
+- Game-over flow now includes a Return to Lobby button (authored-canvas and runtime fallback), with optional fresh-run regeneration on return.
 - Enemy spawners now support floor-scaled additional wave sequencing with queued-wave tracking via `HasUpcomingWave`.
 - Room clear now defers while upcoming waves are queued, preventing premature stage clear and buff-card reward flow.
 
@@ -67,6 +69,8 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Validate stage-duration expiration behavior for short-duration cards (for example Berserker Tempo).
 - Validate special-card contradiction filtering and one-time pick constraints across long runs.
 - Validate equipped-weapon persistence across full app restart without any manual weapon-list setup in inspector.
+- Design and iterate the authored game-over canvas visual style/spacing/typography now that the runtime hook is in place.
+- Wire and style the authored Return to Lobby button in the final UI prefab/canvas for production polish.
 - Tune floor scaling fields:
   - `enemyHealthPerFloorStep`
   - `enemyDamagePerFloorStep`

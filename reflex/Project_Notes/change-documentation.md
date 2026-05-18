@@ -330,6 +330,72 @@ Implemented contextual door animation and traversal rules so doors now open base
 ### Known Limitations
 - Final animation feel and entry-door grouping radius still need in-editor Play Mode tuning per scene layout.
 
+## 2026-05-18 - Game Over Return-to-Lobby Button
+
+### Summary
+Added a Return to Lobby button to the game-over screen for both authored-canvas UI and runtime fallback UI paths.
+
+### Files Affected
+- Assets/Scripts/Visuals/UI/TemporaryGameOverUI.cs
+
+### Systems Affected
+- Game-over navigation flow
+- Scene-authored game-over canvas bindings
+- Runtime fallback game-over UI
+
+### Gameplay/UI Changes
+- Added `Return to Lobby` button support to `TemporaryGameOverCanvasView` bindings.
+- Added runtime fallback `Return To Lobby` button creation when no authored canvas is available.
+- Added button click behavior:
+  - resumes time (`Time.timeScale = 1`)
+  - hides game-over overlay
+  - optionally regenerates a fresh run before returning
+  - loads lobby scene (default: `Lobby`)
+- Added script controls:
+  - `lobbySceneName` (default `Lobby`)
+  - `generateFreshRunOnReturn` (enabled by default)
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing warning remains unrelated:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Authoring path requires assigning the optional return button reference in `TemporaryGameOverCanvasView` to override runtime fallback button usage cleanly.
+
+## 2026-05-18 - Game Over UI Authoring Canvas Hook
+
+### Summary
+Converted the temporary game-over flow to support a scene-authored Canvas so UI/UX can be designed directly in-editor without relying on hardcoded runtime layout.
+
+### Files Affected
+- Assets/Scripts/Visuals/UI/TemporaryGameOverUI.cs
+
+### Systems Affected
+- Player-death game-over presentation
+- Runtime UI binding and fallback behavior
+
+### Gameplay/UI Changes
+- Added `TemporaryGameOverCanvasView` component (in the same script file) for editor-authored bindings:
+  - `CanvasGroup`
+  - `TextMeshProUGUI` details text
+- `TemporaryGameOverUI` now:
+  - searches for an authored `TemporaryGameOverCanvasView` in loaded scenes (including inactive objects)
+  - uses authored canvas bindings when available
+  - falls back to runtime-generated UI only when no authored view is found
+- Authoring flow is now designer-friendly:
+  - create/modify your own Canvas hierarchy
+  - assign references in `TemporaryGameOverCanvasView`
+  - iterate on layout/visuals without code edits
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing warning remains unrelated:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Current display content is still composed into one details text block; visual hierarchy is now editable, but field-level text splitting is a future enhancement.
+
 ## 2026-05-17 - Equipped Weapon Persistence Without Manual Weapon Lists
 
 ### Summary

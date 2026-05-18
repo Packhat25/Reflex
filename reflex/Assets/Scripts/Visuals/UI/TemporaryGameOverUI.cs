@@ -7,10 +7,17 @@ using UnityEngine.UI;
 public class TemporaryGameOverUI : MonoBehaviour
 {
     private static TemporaryGameOverUI _instance;
+    private const string DefaultLobbySceneName = "Lobby";
+
+    [Header("Navigation")]
+    [SerializeField] private string lobbySceneName = DefaultLobbySceneName;
+    [SerializeField] private bool generateFreshRunOnReturn = true;
 
     private PlayerManager _observedPlayer;
+    private TemporaryGameOverCanvasView _authoredCanvasView;
     private CanvasGroup _canvasGroup;
     private TextMeshProUGUI _detailsText;
+    private Button _returnToLobbyButton;
     private bool _isShowing;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
@@ -35,7 +42,7 @@ public class TemporaryGameOverUI : MonoBehaviour
 
         _instance = this;
         DontDestroyOnLoad(gameObject);
-        BuildRuntimeUIIfNeeded();
+        ResolveCanvasBindings();
     }
 
     private void OnEnable()
@@ -65,6 +72,7 @@ public class TemporaryGameOverUI : MonoBehaviour
             return;
         }
 
+        ResolveCanvasBindings();
         TryBindPlayer();
     }
 
@@ -104,7 +112,7 @@ public class TemporaryGameOverUI : MonoBehaviour
             return;
         }
 
-        BuildRuntimeUIIfNeeded();
+        ResolveCanvasBindings();
         if (_canvasGroup == null || _detailsText == null)
         {
             return;
@@ -138,6 +146,11 @@ public class TemporaryGameOverUI : MonoBehaviour
         _canvasGroup.alpha = 1f;
         _canvasGroup.interactable = true;
         _canvasGroup.blocksRaycasts = true;
+        if (_returnToLobbyButton != null)
+        {
+            _returnToLobbyButton.interactable = true;
+        }
+
         _isShowing = true;
         Time.timeScale = 0f;
     }
@@ -184,9 +197,53 @@ public class TemporaryGameOverUI : MonoBehaviour
             : runTime.ToString(@"mm\:ss");
     }
 
+    private void ResolveCanvasBindings()
+    {
+        if (TryBindAuthoredCanvas())
+        {
+            return;
+        }
+
+        BuildRuntimeUIIfNeeded();
+    }
+
+    private bool TryBindAuthoredCanvas()
+    {
+        if (_authoredCanvasView != null)
+        {
+            if (_authoredCanvasView.TryGetBindings(out CanvasGroup group, out TextMeshProUGUI details, out Button returnButton))
+            {
+                _canvasGroup = group;
+                _detailsText = details;
+                BindReturnToLobbyButton(returnButton);
+                _authoredCanvasView.HideImmediate();
+                return true;
+            }
+        }
+
+        TemporaryGameOverCanvasView discoveredView = FindFirstObjectByType<TemporaryGameOverCanvasView>(FindObjectsInactive.Include);
+        if (discoveredView == null)
+        {
+            return false;
+        }
+
+        if (!discoveredView.TryGetBindings(out CanvasGroup discoveredGroup, out TextMeshProUGUI discoveredDetails, out Button discoveredReturnButton))
+        {
+            Debug.LogWarning("TemporaryGameOverCanvasView found but missing CanvasGroup or details text reference.");
+            return false;
+        }
+
+        _authoredCanvasView = discoveredView;
+        _canvasGroup = discoveredGroup;
+        _detailsText = discoveredDetails;
+        BindReturnToLobbyButton(discoveredReturnButton);
+        _authoredCanvasView.HideImmediate();
+        return true;
+    }
+
     private void BuildRuntimeUIIfNeeded()
     {
-        if (_canvasGroup != null && _detailsText != null)
+        if (_canvasGroup != null && _detailsText != null && _returnToLobbyButton != null)
         {
             return;
         }
@@ -239,6 +296,77 @@ public class TemporaryGameOverUI : MonoBehaviour
             new Vector2(920f, 690f),
             new Vector2(0.5f, 0.5f),
             TextAlignmentOptions.TopLeft);
+
+        RectTransform buttonRect = CreateImage(
+            "Return To Lobby Button",
+            panel,
+            new Color(0.2f, 0.28f, 0.45f, 1f),
+            new Vector2(0.5f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(0f, 58f),
+            new Vector2(360f, 72f),
+            new Vector2(0.5f, 0.5f));
+
+        Button button = buttonRect.gameObject.AddComponent<Button>();
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(0.92f, 0.95f, 1f, 1f);
+        colors.pressedColor = new Color(0.8f, 0.85f, 1f, 1f);
+        button.colors = colors;
+
+        CreateText(
+            "Label",
+            buttonRect,
+            "Return To Lobby",
+            30f,
+            FontStyles.Bold,
+            new Color(0.95f, 0.98f, 1f, 1f),
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f),
+            Vector2.zero,
+            new Vector2(340f, 56f),
+            new Vector2(0.5f, 0.5f),
+            TextAlignmentOptions.Center);
+
+        BindReturnToLobbyButton(button);
+    }
+
+    private void BindReturnToLobbyButton(Button button)
+    {
+        if (_returnToLobbyButton != null)
+        {
+            _returnToLobbyButton.onClick.RemoveListener(HandleReturnToLobbyPressed);
+        }
+
+        _returnToLobbyButton = button;
+        if (_returnToLobbyButton == null)
+        {
+            return;
+        }
+
+        _returnToLobbyButton.onClick.RemoveListener(HandleReturnToLobbyPressed);
+        _returnToLobbyButton.onClick.AddListener(HandleReturnToLobbyPressed);
+    }
+
+    private void HandleReturnToLobbyPressed()
+    {
+        Time.timeScale = 1f;
+        _isShowing = false;
+
+        if (_canvasGroup != null)
+        {
+            _canvasGroup.alpha = 0f;
+            _canvasGroup.interactable = false;
+            _canvasGroup.blocksRaycasts = false;
+        }
+
+        if (generateFreshRunOnReturn && LevelRunManager.HasInstance)
+        {
+            LevelRunManager.Instance.GenerateNewRun();
+        }
+
+        string targetScene = string.IsNullOrWhiteSpace(lobbySceneName) ? DefaultLobbySceneName : lobbySceneName;
+        SceneManager.LoadScene(targetScene, LoadSceneMode.Single);
     }
 
     private RectTransform CreateImage(
@@ -297,5 +425,63 @@ public class TemporaryGameOverUI : MonoBehaviour
         text.textWrappingMode = TextWrappingModes.Normal;
         text.font = TMP_Settings.defaultFontAsset;
         return text;
+    }
+}
+
+[DisallowMultipleComponent]
+public class TemporaryGameOverCanvasView : MonoBehaviour
+{
+    [Header("Required References")]
+    [SerializeField] private CanvasGroup canvasGroup;
+    [SerializeField] private TextMeshProUGUI detailsText;
+    [SerializeField] private Button returnToLobbyButton;
+
+    [Header("Runtime Behavior")]
+    [SerializeField] private bool hideOnAwake = true;
+
+    private void Awake()
+    {
+        if (hideOnAwake)
+        {
+            HideImmediate();
+        }
+    }
+
+    public bool TryGetBindings(out CanvasGroup group, out TextMeshProUGUI details, out Button returnButton)
+    {
+        group = canvasGroup;
+        details = detailsText;
+        returnButton = returnToLobbyButton;
+        return group != null && details != null;
+    }
+
+    public void HideImmediate()
+    {
+        if (canvasGroup == null)
+        {
+            return;
+        }
+
+        canvasGroup.alpha = 0f;
+        canvasGroup.interactable = false;
+        canvasGroup.blocksRaycasts = false;
+    }
+
+    private void Reset()
+    {
+        if (canvasGroup == null)
+        {
+            canvasGroup = GetComponent<CanvasGroup>();
+        }
+
+        if (detailsText == null)
+        {
+            detailsText = GetComponentInChildren<TextMeshProUGUI>(true);
+        }
+
+        if (returnToLobbyButton == null)
+        {
+            returnToLobbyButton = GetComponentInChildren<Button>(true);
+        }
     }
 }
