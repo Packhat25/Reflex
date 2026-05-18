@@ -1,3 +1,91 @@
+## 2026-05-18 - Emotion Playstyle Validity Refactor (Combat Commitment vs Avoidance)
+
+### Summary
+Refactored emotion scoring to better match intended playstyle semantics: aggressive as high combat commitment/bruteforce behavior, and calm as slower, lower-engagement, avoidance-leaning behavior.
+
+### Files Affected
+- Assets/Scripts/AI/EmotionEngine.cs
+
+### Systems Affected
+- Emotion state classification and scoring
+- Aggression confidence/evidence gating
+- Debug factor interpretation for profile tuning
+
+### Gameplay Changes
+- Reworked score inputs from mostly raw totals to rate-normalized evidence (per-time pressure) to reduce saturation drift over long runs.
+- Lifetime rate scoring now uses accumulated tracked activity time (running + idle) instead of a single-room clear duration.
+- Added explicit combat commitment signal:
+  - Attack volume over time
+  - Attacks-per-encounter initiative
+  - Hit conversion quality
+- Added encounter-vs-engagement telemetry:
+  - `enemiesEncountered` tracks enemies that detect the player.
+  - `enemiesEngaged` tracks enemies the player actually commits attacks against.
+  - Calm/avoidance scoring now uses this gap directly (seen but not engaged).
+- Added explicit calm avoidance signal:
+  - Lower engagement per encounter
+  - Higher idle share
+  - Slower room-clear tempo
+  - Lower incoming pressure
+- Reframed room tempo contribution:
+  - Faster clears now bias aggressive score.
+  - Slower clears now bias calm score.
+- Updated confidence calculation to use a decision-window style evidence model (targeting ~45s trend quality) to avoid flips from isolated actions.
+- Added tunable fields:
+  - `expectedAttacksPerEncounter`
+  - `expectedDecisionWindowSeconds`
+  - `minimumRateSampleWindow`
+
+### Design Notes
+- This model aligns more directly with the project behavior goals:
+  - Aggressive: commit to frequent combat and force through encounters.
+  - Calm: engage less aggressively and clear more deliberately.
+- Rate-based scoring keeps state interpretation more stable across progression and long sessions.
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- The current tracker is intentionally combat-and-movement-only for current scope (no puzzle subsystem), so classification quality depends on encounter, engagement, movement, and damage signals.
+- Final threshold/weight tuning still requires in-editor playtests across different weapon cadences and room archetypes.
+
+## 2026-05-18 - Temporary Loading Screen (Asset Load + Shader Warmup)
+
+### Summary
+Added a temporary loading overlay system that appears during scene asset loading and shader warmup, using the same authored-canvas-or-runtime-canvas workflow as the temporary game-over UI.
+
+### Files Affected
+- Assets/Scripts/Visuals/UI/TemporaryGameOverUI.cs
+- Assets/Scripts/LevelGeneration/LevelRunManager.cs
+
+### Systems Affected
+- Scene transition loading flow
+- Shader warmup presentation
+- Runtime UI overlay bootstrapping
+
+### Gameplay/UI Changes
+- Added `TemporaryLoadingUI` runtime manager (bootstrapped before scene load).
+- Added `TemporaryLoadingCanvasView` authored-canvas binding component for easy in-editor customization.
+- Scene loading now uses async flow with visible loading states:
+  - `Loading assets...`
+  - `Compiling shaders...`
+  - `Finalizing...`
+- Added startup shader warmup overlay (`showStartupShaderWarmup`) to cover first-load shader compilation.
+- Updated all direct scene transitions in code to route through the loading overlay with safe fallback:
+  - `TemporaryGameOverUI` return-to-lobby flow
+  - `LevelRunManager.TravelTo(...)`
+  - `LevelRunManager.AdvanceToNextFloor()`
+
+### Build/Test
+- `dotnet build reflex.sln` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Unity Play Mode validation is still required to tune perceived timing and visual polish of the loading overlay across all scene transitions.
+
 ## 2026-05-18 - Boss Floor Cadence + Direct Boss Scene Routing Fix
 
 ### Summary
