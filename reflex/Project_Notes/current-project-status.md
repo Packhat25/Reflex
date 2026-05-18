@@ -58,6 +58,7 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Game-over flow now includes a Return to Lobby button (authored-canvas and runtime fallback), with optional fresh-run regeneration on return.
 - Return-to-lobby from game-over now performs a full respawn reset (clears in-run card buffs and revives player state) before loading Lobby.
 - Added a temporary loading overlay system for scene transitions and shader warmup, with authored-canvas bindings (`TemporaryLoadingCanvasView`) plus runtime fallback canvas generation.
+- Loading overlay shader warmup is now Editor-safe by default (full shader warmup disabled in Editor, still configurable and available for player builds).
 - Added `WeaponManager.HitboxOn()` combo-index safety guards to prevent post-reset animation-event `IndexOutOfRangeException` crashes.
 - Enemy spawners now support floor-scaled additional wave sequencing with queued-wave tracking via `HasUpcomingWave`.
 - Room clear now defers while upcoming waves are queued, preventing premature stage clear and buff-card reward flow.
