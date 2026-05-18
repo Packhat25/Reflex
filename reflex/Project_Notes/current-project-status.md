@@ -61,6 +61,7 @@ Lobby-first run flow is now wired with deterministic progression to boss, with a
 - Added `WeaponManager.HitboxOn()` combo-index safety guards to prevent post-reset animation-event `IndexOutOfRangeException` crashes.
 - Enemy spawners now support floor-scaled additional wave sequencing with queued-wave tracking via `HasUpcomingWave`.
 - Room clear now defers while upcoming waves are queued, preventing premature stage clear and buff-card reward flow.
+- Shared spawn prefabs now use weighted random enemy-type waves (Ant/Drone/Tank), with tank as a lower-chance exclusive wave that scales count by floor.
 
 ## Active Priorities
 - Playtest full path: Lobby (start only) -> Floor 1 stage chain -> Floor 2 stage chain (no lobby return).

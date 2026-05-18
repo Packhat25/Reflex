@@ -1,3 +1,38 @@
+## 2026-05-18 - Weighted Enemy Type Randomization + Tank Exclusive Scaling
+
+### Summary
+Updated enemy spawners to pick enemy types per wave from a weighted pool (Ant, Drone, Tank), with tank configured as less likely and spawned as an exclusive wave whose count scales up by floor.
+
+### Files Affected
+- Assets/Scripts/AI/States/SpawnControl/EnemySpawner.cs
+- Assets/Prefabs/Enemy Prefabs/Spawn Ant.prefab
+- Assets/Prefabs/Enemy Prefabs/Spawn Drone.prefab
+
+### Systems Affected
+- Enemy wave composition
+- Spawner prefab configuration shared across level scenes
+- Floor-based wave scaling for elite-style enemy waves
+
+### Gameplay Changes
+- Added weighted wave selection in `EnemySpawner` through `enemySpawnOptions`.
+- Added per-wave exclusive mode (`exclusiveWave`) for heavy enemy types.
+- Tank is now configured as:
+  - lower spawn chance (`weight: 0.35` vs `1.0` for Ant/Drone)
+  - exclusive wave type (no mixed enemy wave when selected)
+  - floor-scaling count:
+    - base: 1
+    - +1 every 3 floors
+    - cap: 4
+- Applied identical spawn-option configuration to both shared spawner prefabs used across level scenes.
+
+### Build/Test
+- `dotnet build Assembly-CSharp.csproj -nologo` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Unity Play Mode validation is still needed to confirm encounter feel and tank frequency pacing across full floor progression.
+
 ## 2026-05-18 - Emotion Playstyle Validity Refactor (Combat Commitment vs Avoidance)
 
 ### Summary

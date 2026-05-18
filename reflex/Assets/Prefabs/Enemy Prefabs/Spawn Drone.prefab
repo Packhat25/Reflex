@@ -49,3 +49,21 @@ MonoBehaviour:
   spawnRadius: 10
   spawnHeight: 0
   respawnDelay: 3
+  randomizeEnemyTypes: 1
+  enemySpawnOptions:
+  - label: Ant
+    prefab: {fileID: 6838159156453297160, guid: a925df145e636eb44badd9ad5d83ef70, type: 3}
+    weight: 1
+    exclusiveWave: 0
+  - label: Drone
+    prefab: {fileID: 7718681091217661635, guid: d08830adefeaced45858e30a24bd8b9f, type: 3}
+    weight: 1
+    exclusiveWave: 0
+  - label: Tank
+    prefab: {fileID: 4921056880241442724, guid: 938bc88f97c29e44ea3559fc8892d46f, type: 3}
+    weight: 0.35
+    exclusiveWave: 1
+  exclusiveWaveBaseSpawnCount: 1
+  exclusiveWaveFloorStep: 3
+  exclusiveWaveSpawnCountCap: 4
+  logSpawnSelections: 1
