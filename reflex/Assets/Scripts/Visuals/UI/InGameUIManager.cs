@@ -2,6 +2,10 @@ using System;
 using System.Collections;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem.UI;
+#endif
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -963,9 +967,17 @@ public class InGameUIManager : MonoBehaviour
         ResolveGameOverBindings();
         if (!HasUsableGameOverBindings())
         {
-            Debug.LogWarning("InGameUIManager cannot show game over because the UI Manager Game Over Canvas is missing required bindings.");
-            return;
+            Debug.LogWarning("InGameUIManager could not bind the authored Game Over Canvas. Building emergency fallback game-over UI.");
+            BuildRuntimeGameOverFallback();
+            if (!HasUsableGameOverBindings())
+            {
+                Debug.LogError("InGameUIManager cannot show game over because no usable game-over UI could be created.");
+                Time.timeScale = 0f;
+                return;
+            }
         }
+
+        EnsureEventSystem();
 
         RunRewardSummary summary = BuildFallbackSummary();
         if (RewardManager.Instance != null &&
@@ -994,6 +1006,10 @@ public class InGameUIManager : MonoBehaviour
         if (returnToLobbyButton != null)
         {
             returnToLobbyButton.interactable = true;
+        }
+        else
+        {
+            Debug.LogWarning("Game over screen is visible, but no return-to-lobby button is bound.");
         }
 
         isGameOverShowing = true;
@@ -1062,8 +1078,163 @@ public class InGameUIManager : MonoBehaviour
     private bool HasUsableGameOverBindings()
     {
         return gameOverCanvasRoot != null &&
-               gameOverCanvasGroup != null &&
-               returnToLobbyButton != null;
+               gameOverCanvasGroup != null;
+    }
+
+    private void BuildRuntimeGameOverFallback()
+    {
+        GameObject canvasObject = CreateUIObject(
+            "Runtime Game Over Canvas",
+            transform,
+            typeof(RectTransform),
+            typeof(Canvas),
+            typeof(CanvasScaler),
+            typeof(GraphicRaycaster),
+            typeof(CanvasGroup));
+
+        RectTransform canvasRect = canvasObject.GetComponent<RectTransform>();
+        StretchToParent(canvasRect);
+
+        Canvas canvas = canvasObject.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 2200;
+
+        CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+        scaler.matchWidthOrHeight = 0.5f;
+
+        gameOverCanvasGroup = canvasObject.GetComponent<CanvasGroup>();
+
+        RectTransform dimRect = CreateImage("Dim", canvasRect, new Color(0f, 0f, 0f, 0.86f));
+        StretchToParent(dimRect);
+
+        RectTransform panelRect = CreateImage("Panel", canvasRect, new Color(0.055f, 0.055f, 0.065f, 0.98f));
+        panelRect.anchorMin = new Vector2(0.5f, 0.5f);
+        panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+        panelRect.pivot = new Vector2(0.5f, 0.5f);
+        panelRect.anchoredPosition = Vector2.zero;
+        panelRect.sizeDelta = new Vector2(820f, 440f);
+
+        gameOverTitleText = CreateRuntimeGameOverText(
+            "Title",
+            panelRect,
+            "GAME OVER",
+            66f,
+            FontStyles.Bold,
+            new Color(1f, 0.18f, 0.14f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0f, -92f),
+            new Vector2(720f, 100f));
+
+        gameOverDetailsText = CreateRuntimeGameOverText(
+            "Details",
+            panelRect,
+            "Run ended.",
+            30f,
+            FontStyles.Normal,
+            Color.white,
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0f, 4f),
+            new Vector2(700f, 130f));
+
+        returnToLobbyButton = CreateRuntimeGameOverButton(panelRect);
+        BindReturnToLobbyButton(returnToLobbyButton);
+
+        CacheGameOverCanvasVisibility(canvasRect, false);
+        ClearGameOverSummaryBindings();
+        SetGameOverCanvasVisible(false);
+    }
+
+    private RectTransform CreateImage(string objectName, Transform parent, Color color)
+    {
+        GameObject imageObject = CreateUIObject(objectName, parent, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        Image image = imageObject.GetComponent<Image>();
+        image.color = color;
+        return imageObject.GetComponent<RectTransform>();
+    }
+
+    private TextMeshProUGUI CreateRuntimeGameOverText(
+        string objectName,
+        Transform parent,
+        string value,
+        float fontSize,
+        FontStyles fontStyle,
+        Color color,
+        Vector2 anchorMin,
+        Vector2 anchorMax,
+        Vector2 anchoredPosition,
+        Vector2 sizeDelta)
+    {
+        GameObject textObject = CreateUIObject(objectName, parent, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        RectTransform rect = textObject.GetComponent<RectTransform>();
+        rect.anchorMin = anchorMin;
+        rect.anchorMax = anchorMax;
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = anchoredPosition;
+        rect.sizeDelta = sizeDelta;
+
+        TextMeshProUGUI text = textObject.GetComponent<TextMeshProUGUI>();
+        text.text = value;
+        text.fontSize = fontSize;
+        text.fontStyle = fontStyle;
+        text.color = color;
+        text.alignment = TextAlignmentOptions.Center;
+        text.textWrappingMode = TextWrappingModes.Normal;
+        text.raycastTarget = false;
+        if (TMP_Settings.defaultFontAsset != null)
+        {
+            text.font = TMP_Settings.defaultFontAsset;
+        }
+
+        return text;
+    }
+
+    private Button CreateRuntimeGameOverButton(Transform parent)
+    {
+        RectTransform buttonRect = CreateImage("Return To Lobby", parent, new Color(0.85f, 0.06f, 0.045f, 1f));
+        buttonRect.anchorMin = new Vector2(0.5f, 0f);
+        buttonRect.anchorMax = new Vector2(0.5f, 0f);
+        buttonRect.pivot = new Vector2(0.5f, 0.5f);
+        buttonRect.anchoredPosition = new Vector2(0f, 76f);
+        buttonRect.sizeDelta = new Vector2(330f, 72f);
+
+        Button button = buttonRect.gameObject.AddComponent<Button>();
+        button.targetGraphic = buttonRect.GetComponent<Image>();
+
+        TextMeshProUGUI label = CreateRuntimeGameOverText(
+            "Label",
+            buttonRect,
+            "RETURN TO LOBBY",
+            28f,
+            FontStyles.Bold,
+            Color.white,
+            Vector2.zero,
+            Vector2.one,
+            Vector2.zero,
+            Vector2.zero);
+        StretchToParent(label.rectTransform);
+        return button;
+    }
+
+    private void EnsureEventSystem()
+    {
+        if (EventSystem.current != null || FindFirstObjectByType<EventSystem>(FindObjectsInactive.Exclude) != null)
+        {
+            return;
+        }
+
+        GameObject eventSystemObject = new GameObject("EventSystem (Runtime)");
+        eventSystemObject.AddComponent<EventSystem>();
+
+#if ENABLE_INPUT_SYSTEM
+        eventSystemObject.AddComponent<InputSystemUIInputModule>();
+#else
+        eventSystemObject.AddComponent<StandaloneInputModule>();
+#endif
     }
 
     private void TryBindStructuredSummaryFields(Transform root)
@@ -1271,6 +1442,11 @@ public class InGameUIManager : MonoBehaviour
 
     private void SetGameOverCanvasVisible(bool visible)
     {
+        if (visible && gameOverCanvasRoot != null && !gameOverCanvasRoot.gameObject.activeSelf)
+        {
+            gameOverCanvasRoot.gameObject.SetActive(true);
+        }
+
         if (gameOverCanvasGroup != null)
         {
             gameOverCanvasGroup.alpha = visible ? 1f : 0f;

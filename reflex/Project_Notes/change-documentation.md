@@ -1,3 +1,113 @@
+## 2026-05-18 - Game Over Canvas Activation Fix
+
+### Summary
+Fixed the death flow failing to show the game-over menu because the authored `Game Over Canvas` prefab object is inactive by default and was only having its `CanvasGroup`/scale changed at runtime.
+
+### Files Affected
+- Assets/Scripts/Visuals/UI/InGameUIManager.cs
+- Assets/Scripts/Player/PlayerManager.cs
+- Project_Notes/change-documentation.md
+- Project_Notes/current-project-status.md
+- Project_Notes/game-over-ui.md
+- Project_Notes/player-manager.md
+
+### Scenes Affected
+- Any scene where the player can die and trigger game-over flow.
+
+### Systems Affected
+- Player death flow
+- Game-over UI visibility
+- Runtime game-over fallback
+
+### Gameplay/UI Changes
+- `SetGameOverCanvasVisible(true)` now activates the `Game Over Canvas` GameObject before setting alpha/interactability/scale.
+- `PlayerManager.Die()` now attempts direct game-over presentation before notifying death subscribers.
+- If no `InGameUIManager` exists when the player dies, `PlayerManager` creates a runtime fallback manager so the emergency game-over canvas can still appear.
+
+### Build/Test
+- `dotnet build Assembly-CSharp.csproj -nologo` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(31,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Unity player validation is still required for lethal damage -> Game Over Canvas -> Return to Lobby.
+
+## 2026-05-18 - Dash Collision Restore Scene Guard
+
+### Summary
+Fixed a crash in `PlayerMovementManagement.RestoreDashPassThroughCollisions()` where dash cleanup could call `Physics.IgnoreCollision()` on a collider that was no longer part of a loaded Unity scene.
+
+### Files Affected
+- Assets/Scripts/Movement/PlayerMovementManagement.cs
+- Project_Notes/change-documentation.md
+- Project_Notes/current-project-status.md
+- Project_Notes/player-movement.md
+
+### Scenes Affected
+- Any scene where the player can dash through enemies and then be disabled, killed, or unloaded.
+
+### Systems Affected
+- Player dash pass-through collision handling
+- Scene unload/death cleanup
+- Movement shutdown safety
+
+### Gameplay Changes
+- Dash pass-through setup now ignores only colliders that belong to loaded Unity scenes.
+- Dash cleanup now skips stale, prefab-asset, or unloaded-scene colliders instead of calling `Physics.IgnoreCollision()` on them.
+- Collision ignore/restore calls are wrapped defensively so invalid collider cleanup logs a warning and continues rather than crashing.
+
+### Build/Test
+- `dotnet build Assembly-CSharp.csproj -nologo` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(31,18) CS0649 isSprinting is never assigned`.
+
+### Known Limitations
+- Unity player validation is still needed to confirm death/scene-unload during or after dash no longer reports the prefab-asset collider warning.
+
+## 2026-05-18 - Death Flow Crash Guard + Trap Indicator Build Fix
+
+### Summary
+Fixed build/preprocess errors from `TrapHazardIndicator` and hardened the player death flow so game-over presentation is attempted even if telemetry, event subscribers, or authored UI bindings fail.
+
+### Files Affected
+- Assets/Scripts/Player/TrapHazardIndicator.cs
+- Assets/Scripts/Player/PlayerManager.cs
+- Assets/Scripts/Visuals/UI/InGameUIManager.cs
+- Project_Notes/change-documentation.md
+- Project_Notes/current-project-status.md
+- Project_Notes/player-manager.md
+- Project_Notes/trap-hazards.md
+- Project_Notes/game-over-ui.md
+
+### Scenes Affected
+- Any scene containing trap hazard indicators.
+- Any scene where the player can die and trigger game-over flow.
+
+### Systems Affected
+- Trap hazard visuals
+- Player damage/death handling
+- Emotion telemetry during damage/death
+- Game-over UI presentation
+- Runtime fallback UI safety
+
+### Gameplay/UI Changes
+- `TrapHazardIndicator` no longer creates `MaterialPropertyBlock` from a `MonoBehaviour` field initializer.
+- `TrapHazardIndicator.OnValidate()` now uses the same lazy property-block setup as runtime updates, preventing null `GetPropertyBlock()` calls during build preprocessing.
+- Player damage/death telemetry calls are now isolated behind try/catch wrappers so telemetry exceptions cannot block death handling.
+- `PlayerDied` subscribers are invoked individually so one subscriber exception cannot stop remaining death flow.
+- `InGameUIManager.ShowGameOver()` now builds a minimal emergency game-over canvas if the authored `Game Over Canvas` cannot be bound.
+- Game-over binding now requires a canvas root and `CanvasGroup`; the return button is preferred but no longer prevents the screen itself from appearing.
+
+### Build/Test
+- `dotnet build Assembly-CSharp.csproj -nologo` succeeded.
+- Existing unrelated warning remains:
+  - `Assets/Scripts/Movement/PlayerMovementManagement.cs(30,18) CS0649 isSprinting is never assigned`.
+- Player log scan did not show a managed death/game-over exception in the latest available player log.
+
+### Known Limitations
+- Unity Editor/player-build death validation is still required to confirm the authored game-over screen appears correctly in the packaged build.
+- The emergency game-over canvas is intentionally plain and only appears if authored bindings fail.
+
 ## 2026-05-18 - Player Startup HP Safety Guard
 
 ### Summary

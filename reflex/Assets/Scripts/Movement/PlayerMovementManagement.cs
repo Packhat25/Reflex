@@ -1,6 +1,7 @@
 using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -493,12 +494,21 @@ public class PlayerMovementManagement : MonoBehaviour
 
     private void TryIgnoreDashCollider(Collider hit)
     {
-        if (hit == null || IsOwnCollider(hit) || !IsEnemyCollider(hit) || !ignoredDashColliderSet.Add(hit))
+        if (hit == null ||
+            IsOwnCollider(hit) ||
+            !IsEnemyCollider(hit) ||
+            !CanUsePhysicsIgnoreCollision(playerController, hit) ||
+            !ignoredDashColliderSet.Add(hit))
         {
             return;
         }
 
-        Physics.IgnoreCollision(playerController, hit, true);
+        if (!TrySetDashCollisionIgnored(hit, true))
+        {
+            ignoredDashColliderSet.Remove(hit);
+            return;
+        }
+
         ignoredDashColliders.Add(hit);
     }
 
@@ -507,14 +517,60 @@ public class PlayerMovementManagement : MonoBehaviour
         for (int i = 0; i < ignoredDashColliders.Count; i++)
         {
             Collider ignoredCollider = ignoredDashColliders[i];
-            if (ignoredCollider != null && playerController != null)
+            if (CanUsePhysicsIgnoreCollision(playerController, ignoredCollider))
             {
-                Physics.IgnoreCollision(playerController, ignoredCollider, false);
+                TrySetDashCollisionIgnored(ignoredCollider, false);
             }
         }
 
         ignoredDashColliders.Clear();
         ignoredDashColliderSet.Clear();
+    }
+
+    private bool TrySetDashCollisionIgnored(Collider targetCollider, bool ignored)
+    {
+        if (!CanUsePhysicsIgnoreCollision(playerController, targetCollider))
+        {
+            return false;
+        }
+
+        try
+        {
+            Physics.IgnoreCollision(playerController, targetCollider, ignored);
+            return true;
+        }
+        catch (UnityException exception)
+        {
+            Debug.LogWarning($"Skipped dash collision {(ignored ? "ignore" : "restore")} for invalid collider '{GetColliderDebugName(targetCollider)}': {exception.Message}");
+            return false;
+        }
+    }
+
+    private static bool CanUsePhysicsIgnoreCollision(Collider first, Collider second)
+    {
+        return IsSceneCollider(first) && IsSceneCollider(second);
+    }
+
+    private static bool IsSceneCollider(Collider colliderToCheck)
+    {
+        if (colliderToCheck == null)
+        {
+            return false;
+        }
+
+        GameObject colliderObject = colliderToCheck.gameObject;
+        if (colliderObject == null || colliderObject.transform == null)
+        {
+            return false;
+        }
+
+        Scene scene = colliderObject.scene;
+        return scene.IsValid() && scene.isLoaded;
+    }
+
+    private static string GetColliderDebugName(Collider colliderToCheck)
+    {
+        return colliderToCheck != null ? colliderToCheck.name : "null";
     }
 
     private void MovePlayer()

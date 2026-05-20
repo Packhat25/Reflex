@@ -155,7 +155,7 @@ public class PlayerManager : MonoBehaviour
 
         float finalIncomingDamage = amount * glassCannonDamageTakenMultiplier;
         currentHealth -= finalIncomingDamage;
-        EmotionEngine.Instance.RecordDamageTaken(finalIncomingDamage);
+        RecordDamageTakenSafely(finalIncomingDamage);
         Debug.Log($"HP: {currentHealth}/{MaxHealth}");
 
         if (currentHealth <= 0)
@@ -270,12 +270,9 @@ public class PlayerManager : MonoBehaviour
 
         isDead = true;
         canAttack = false;
-        EmotionEngine.Instance.RecordDeath();
-        PlayerDied?.Invoke(this);
-        if (InGameUIManager.Instance != null)
-        {
-            InGameUIManager.Instance.ShowGameOver(this);
-        }
+        RecordDeathSafely();
+        ShowGameOverSafely();
+        NotifyPlayerDiedSafely();
 
         Debug.Log("<color=red>Player is Dead</color>");
     }
@@ -364,5 +361,91 @@ public class PlayerManager : MonoBehaviour
         }
 
         InGameUIManager.Instance.UpdateWeaponIcon(weaponData != null ? weaponData.weaponIcon : null);
+    }
+
+    private void RecordDamageTakenSafely(float damage)
+    {
+        try
+        {
+            EmotionEngine.Instance.RecordDamageTaken(damage);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception);
+        }
+    }
+
+    private void RecordDeathSafely()
+    {
+        try
+        {
+            EmotionEngine.Instance.RecordDeath();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception);
+        }
+    }
+
+    private void NotifyPlayerDiedSafely()
+    {
+        Action<PlayerManager> handlers = PlayerDied;
+        if (handlers == null)
+        {
+            return;
+        }
+
+        foreach (Action<PlayerManager> handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                handler(this);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception);
+            }
+        }
+    }
+
+    private void ShowGameOverSafely()
+    {
+        InGameUIManager gameOverUI = GetOrCreateGameOverUIManager();
+        if (gameOverUI == null)
+        {
+            Debug.LogWarning("Player died but no InGameUIManager instance was available to show game over.");
+            return;
+        }
+
+        try
+        {
+            gameOverUI.ShowGameOver(this);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception);
+        }
+    }
+
+    private InGameUIManager GetOrCreateGameOverUIManager()
+    {
+        if (InGameUIManager.Instance != null)
+        {
+            return InGameUIManager.Instance;
+        }
+
+        InGameUIManager sceneManager = FindFirstObjectByType<InGameUIManager>(FindObjectsInactive.Include);
+        if (sceneManager != null)
+        {
+            if (!sceneManager.gameObject.activeSelf)
+            {
+                sceneManager.gameObject.SetActive(true);
+            }
+
+            return sceneManager;
+        }
+
+        GameObject runtimeUIObject = new GameObject("Runtime InGameUIManager");
+        return runtimeUIObject.AddComponent<InGameUIManager>();
     }
 }
