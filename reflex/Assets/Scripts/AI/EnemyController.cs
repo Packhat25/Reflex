@@ -1,7 +1,10 @@
 using UnityEngine;
+using System;
 
 public class EnemyController : MonoBehaviour
 {
+    public static event Action<EnemyController> EnemyDefeated;
+
     private IEnemyState _currentState;
     public string enemyStateDislpay;
 
@@ -27,6 +30,7 @@ public class EnemyController : MonoBehaviour
     public SpriteRenderer spriteRenderer;
     public UnityEngine.AI.NavMeshAgent agent;
     public GameObject enemyHitbox;
+    [HideInInspector] public Vector3 knockbackVelocity;
 
     [Header("Enemy Stats")]
     public EnemyData EnemyStatData; // The ScriptableObject blueprint
@@ -65,18 +69,25 @@ public class EnemyController : MonoBehaviour
 
     void Start()
     {
-        attackDamage = EnemyStatData.attackDamage;
+        float floorHealthMultiplier = LevelRunManager.HasInstance ? LevelRunManager.Instance.CurrentFloorEnemyHealthMultiplier : 1f;
+        float floorDamageMultiplier = LevelRunManager.HasInstance ? LevelRunManager.Instance.CurrentFloorEnemyDamageMultiplier : 1f;
+
         _homePosition = transform.position; // Remember where we started
-        currentHealth = EnemyStatData.maxHealth;
+        maxHealth = EnemyStatData.maxHealth * floorHealthMultiplier;
+        currentHealth = maxHealth;
         speed = EnemyStatData.speed;
-        attackDamage = EnemyStatData.attackDamage;
+        attackDamage = EnemyStatData.attackDamage * floorDamageMultiplier;
         attackCooldown = EnemyStatData.attackCooldown;
-        enemyHitbox.SetActive(false); // Ensure hitbox starts disabled
+        if (enemyHitbox != null)
+        {
+            enemyHitbox.SetActive(false); // Ensure hitbox starts disabled
+        }
         PrintCurrentState();
 
         if (agent == null)
         {
             agent = GetComponent<UnityEngine.AI.NavMeshAgent>();
+            agent.obstacleAvoidanceType = UnityEngine.AI.ObstacleAvoidanceType.NoObstacleAvoidance;
             if (agent == null)
             {
                 Debug.LogWarning($"{name}: No NavMeshAgent found on enemy.");
@@ -380,7 +391,7 @@ public class EnemyController : MonoBehaviour
     }
 
 
-    public void TakeDamage(float amount,float attackStunDuration)
+    public void TakeDamage(float amount, float attackStunDuration, Vector3 knockbackForce)
     {
         // Don't take further damage or change states if already dead
         Debug.Log($"<color=yellow> CurrentHP : {currentHealth}");
@@ -391,10 +402,14 @@ public class EnemyController : MonoBehaviour
         if (currentHealth <= 0)
         {
             SwarmManager.UnregisterEnemy(enemyType, this);
+            EnemyDefeated?.Invoke(this);
             ChangeState(new DeathState(this));
+            animator.Play("Hurt");
         }
         else
         {
+            // Store the incoming knockback so HurtState can execute the physics
+            this.knockbackVelocity = knockbackForce;
             ChangeState(new HurtState(this, attackStunDuration));
         }
     }

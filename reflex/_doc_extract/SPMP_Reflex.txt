@@ -1,0 +1,309 @@
+﻿Re:Flex
+Software Project Management Plan
+Version 01.00
+Revision History
+Date
+Version
+Description
+Author
+02/23/2026
+1.0
+Initial Draft
+Rivera, Carlo Jay O.
+Mora, Mark Paolo R.
+Pariño, Carlo Jay O.
+Gamboa, Jobert Damain P.
+Melgar, Craig Francis G.
+02/2/2026
+1.0
+Edited Project Schedule
+Gamboa, Jobert Damian P.
+Table of Contents
+1Introduction4
+1.1Purpose of Project Management Plan4
+1.2Scope4
+2Executive Summary of Project management plan4
+2.1Assumptions/Constraints4
+Assumptions4
+3Scope Management5
+3.1Work Breakdown Structure5
+3.2Deployment Plan6
+4Schedule/Time Management6
+4.1Milestones6
+4.2Project Schedule7
+4.3Dependencies7
+5Cost/Budget Management8
+6Quality Management8
+7Human Resource Management9
+8Communications Management10
+8.1Communication Matrix10
+9Risk Management10
+9.1Risk Log11
+10Issue Management11
+10.1Issue Log11
+11Procurement Management11
+12Compliance Related Planning12
+Software Project Management Plan
+Introduction
+Purpose of Project Management Plan
+The purpose of this project management plan is to outline the execution, monitoring, and control strategies for the Re:Flex video game development. It serves as the primary reference for stakeholders to understand the project's timeline, resource allocation, and risk mitigation strategies
+Scope
+The scope involves the development of a 2.5D action game featuring an Emotion Engine that adjusts gameplay difficulty and environment based on real-time player behavioral analysis. Deliverables include the game executable for PC.
+Executive Summary of Project management plan
+Re:Flex is a 2.5D action game designed to explore player psychology through an Emotion Engine. The project focuses on implementing Dynamic Difficulty Adjustment within a simulation titled THE MIND LAB, where the system analyzes metrics like movement speed and damage taken to categorize player states as "Aggressive" or "Calm". Managed by a team of four, the project aims to deliver a stable PC experience that adapts NPC behavior and level layouts in real-time while ensuring player privacy through local data processing.
+Assumptions/Constraints
+Assumptions
+Metric Accuracy: It is assumed that player behavior (e.g., speed, damage taken) accurately reflects their emotional state for the purpose of the Emotion Engine's algorithm.
+Hardware Availability: The development team assumes access to standard PC hardware capable of maintaining stable frame rates for accurate metric calculation.
+Local Processing Preference: It is assumed that players prefer local data storage for privacy over cloud-based analytics.
+CONSTRAINTS
+Platform Limitation: The application is strictly constrained to Windows operating systems and PC peripherals (Keyboard and Mouse).
+Single Player Only: The system is designed only for single-player experience to avoid corruption of individual tracking metrics.
+Reliability Standards: The application must maintain a Mean Time Between Failures (MTBF) of at least 50 hours of continuous gameplay.
+Performance Stability: Background processing for the Emotion Engine must not cause visual stuttering or frame rate drops during the gameplay loop.
+Scope Management
+The scope management for Re:Flex focuses on ensuring the Emotion Engine and the 2.5D environment are developed within the defined boundaries to prevent scope creep.
+Scope Baseline: The project is defined as a 2.5D action game for PC, specifically featuring the "Emotion Engine" and the "THE MIND LAB" simulation.
+Requirements Collection: Requirements are gathered based on the need for real-time behavioral analysis (e.g., tracking movement speed and damage taken).
+Change Control: Any changes to the scope must be formally reviewed, as the project is strictly constrained to a single-player Windows experience.
+Verification: Scope is considered complete when the executable functions as a stable local application with a Mean Time Between Failures (MTBF) of 50 hours.
+Work Breakdown Structure
+Core Engine: Development of the 2.5D movement and combat mechanics.
+Emotion Engine: Implementation of algorithms for "Aggressive" and "Calm" state detection.
+Environment: Creation of the "Mind Lab" level layouts and NPC behavior adaptation.
+Data Layer: Local storage system for behavioral tracking.
+Game Assets: Design of the game’s art, character sprites, level environment,User interface.
+FILE: “WORK BREAKDOWN STRUCTURE - Re: Flex”
+Deployment Plan
+The application is constrained to Windows operating systems and will be deployed as a local executable.
+Installation: The software will interface with the local file system to store session data and behavioral tracking.
+Hardware Requirements: Deployment is optimized for specified baseline hardware limits using standard PC peripherals for interaction.
+Data Handling: All statistical data gathered for environmental adaptation will be processed and stored locally on the user’s computer to ensure privacy.
+Schedule/Time Management
+The project schedule for Re:Flex is managed by the Project Manager to ensure all milestones are met within the academic timeframe.
+Scheduling Tool: The team will use a weekly tracking system to monitor progress against the baseline.
+Maintenance: The Project Manager will update the schedule at least every three business days to ensure accuracy.
+Performance Monitoring: If executive milestones vary by more than 10%, a recovery plan will be initiated.
+Milestones
+The table below lists the milestones for this project, along with their estimated completion timeframe.
+Milestones
+Estimated Completion Timeframe
+Project Planning & Authorization
+1 Week
+Initial Sprite Animations
+1 - 2 Weeks
+Game UIDesign
+1 – 3 Weeks
+Emotion Engine Prototype
+5 – 7 Weeks
+Game Environment Alpha
+4 – 6 Weeks
+NPC Behavior Adaptation Module
+2 Weeks
+Stability & Reliability Testing
+5 Days
+Final PC Deployment
+1 Week
+Project Schedule
+Website to use in order to view  - https://www.onlinegantt.com/#/gantt
+Download File and import to website - Gantt Chart.gantt
+https://jbgamboa1223.atlassian.net/wiki/x/14Bu
+(Email is needed to be added into the page)
+Dependencies
+The development of Re:Flex involves several critical dependencies where the start or completion of one task relies on the output of another.
+Internal Dependencies
+Asset Readiness for UI/Environment: The "Game UI Design" (Milestone 3) and "'Mind Lab' Level Layouts" (Milestone 5) are dependent on the completion of "Initial Sprite Animations" (Milestone 2) to ensure visual consistency.
+Algorithm Validation: The "NPC Behavior Adaptation Module" (Milestone 6) cannot be fully integrated until the "Emotion Engine Prototype" (Milestone 4) successfully categorizes player states as "Aggressive" or "Calm".
+Stability Baseline: The "Stability & Reliability Testing" (Milestone 7) requires a feature-complete "Game Environment Alpha" (Milestone 5) to accurately measure the 50-hour Mean Time Between Failures (MTBF).
+Data Integrity: Implementation of "Save File Integrity" and "Privacy Systems" must be completed before final "Stability Testing" to ensure local data processing does not cause frame rate drops.
+External Dependencies
+Software Licensing: The project is dependent on the continued availability of the Unity Editor (Personal/Free version) and GitHub for version control and development.
+Asset Availability: Completion of the environment relies on the availability of "Free for Use" or "Creative Commons" assets from the Unity Asset Store or royalty-free libraries.
+Hardware Availability: The development and testing schedule assumes the team maintains access to personal PC hardware capable of stable performance for metric calculation.
+Academic Timeline: Project milestones and final delivery are strictly bound by the Course Instructor’s submission deadlines and grading rubrics.
+Cost/Budget Management
+Since this is a school project, we will only use free software and free assets. So, there is no cost to be made
+Quality Management
+The quality of the Re:Flex system is defined by the accuracy of its behavioural analysis and the technical stability of the simulation. Quality will be ensured through formal testing, documentation of defects, and adherence to specific performance metrics.
+Quality Objectives
+Metric Accuracy: Ensuring that the system correctly identifies and processes metrics like damage taken, death count, and speed to categorize the user's state.
+System Stability: Maintaining a stable frame rate and a Mean Time Between Failures (MTBF) of at least 50 hours.
+Visual Integrity: Verifying that the HUD provides clear feedback without obscuring the 2.5D field of view.
+Save File Integrity: Implementing validation logic to prevent the manual modification of behavioral data, ensuring the final psychological profile remains authentic.
+Data Privacy & Security: Ensuring all statistical data is processed and stored strictly on the local machine to protect player privacy
+Adaptive Seamlessness: Ensuring that dynamic adjustments to NPC aggression and procedural level changes occur without visual stuttering or interrupting the continuous gameplay loop.
+Quality Assurance Activities
+Requirement Traceability: Using a traceability matrix to ensure that every specific requirement, such as "NPC Aggression Scaling," is fully implemented and tested.
+Consistency Reviews: Regularly reviewing all screen layouts and UI elements to ensure they match the established "MIND LAB" standards.
+Code Inspections: Conducting audits of the background metric tracking to prevent memory leaks or system crashes during extended sessions.
+Quality Control (Testing)
+Functional Testing: Verifying that the system can determine if a user is aggressive or calm based on the defined AI factors.
+Performance Testing: Monitoring background processing to ensure the "Emotion Engine" does not cause visual stuttering during the continuous gameplay loop.
+Security Validation: Performing file validation checks to ensure users cannot easily modify their local behaviour tracking data.
+Input Integrity Testing: Verifying that standard PC peripheral inputs (Keyboard/Mouse) are correctly translated into character movement and menu navigation within the 2.5D environment.
+Human Resource Management
+Assigned Person
+Project Role
+Responsibilities
+Carlo Jay O. Rivera
+Project Manager & Lead Backend Developer
+Responsible for core system architecture, data post-processing, and backend logic integration.
+Jorho Joseph B. Pariño
+AI Engineer & Systems Integrator
+Responsible for designing the adaptive AI logic and managing scene assembly within the Unity Editor.
+Jobert Damian P. Gamboa
+Backend & Quality Assurance (QA)
+Responsible for backend development, AI logic verification, and overall system testing/QA.
+Mark Paolo R. Mora
+Technical Designer
+Responsible for level design, asset implementation, and UI/UX editing within Unity.
+Craig Francis G. Melgar
+Level Designer
+Responsible for environmental design and procedural level constraints within the Unity Editor.
+Communications Management
+The communications management plan for Re:Flex ensures that all stakeholders, including the project team and sponsors, are informed of technical progress, particularly regarding the Emotion Engine and gameplay stability. This plan outlines the vehicles for information distribution and the frequency of updates to maintain the project schedule
+Communication Matrix
+Stakeholder
+Messages
+Vehicles
+Frequency
+Communicators
+Feedback Mechanisms
+Development Team
+Daily task progress, Unity scene synchronization, and technical blockers.
+Instant Messaging (Discord/Messenger) and daily stand-up meetings.
+Twice/Thrice a week
+All Team Members.
+Shared Issue Log and Unity version control logs.
+Backend & AI Logic Group (Rivera, Pariño, Gamboa)
+Emotion Engine algorithm refinement and metric validation.
+Technical huddles and shared documentation comments.
+As needed.
+Rivera, Carlo Jay O.
+Logic flowcharts and backend unit test results.
+Design & Unity Group (Pariño, Mora, Melgar)
+Level layout adjustments, asset implementation, and UI/HUD integration.
+Unity Project collaboration and screen-sharing sessions.
+Weekly.
+Pariño, Jorho Joseph Jr.
+Peer review of Unity scenes and UI mockups
+Quality Assurance (Gamboa)
+Bug reports, system stability results, and DDA accuracy feedback.
+Testing Logs and shared spreadsheet.
+Weekly / After every sprint.
+Gamboa, Jobert Damian P.
+Defect tracking and re-testing logs.
+Course Instructor
+Project milestone submissionsand final system demonstration.
+Formal LMS submissions and scheduled consultations.
+Milestone-based.
+Rivera, Carlo Jay O.
+Grading rubrics and documented feedback.
+Risk Management
+The risk management strategy for Re:Flex focuses on identifying and mitigating technical and resource-related hurdles that could impact the "Mind Lab" simulation.
+Risk Identification: The team will identify risks related to metric accuracy and hardware performance.
+Risk Mitigation: Strategies include rigorous testing to maintain the 50-hour MTBF and ensuring local data processing does not cause frame rate drops.
+Risk Monitoring: The Project Manager will review the Risk Log weekly to ensure the "Emotion Engine" remains stable.
+Risk Log
+Risk Log Reflex.xlsx
+Issue Management
+Issue management handles "real-time" problems that have already occurred, such as bugs in the 2.5D environment or logic errors in the NPC behavior.
+All issues will be documented to ensure they are addressed without impacting on the single-player gameplay experience.
+Issue Tracking: All bugs, defects, or technical hurdles will be recorded onthe project’s Issue Logand GitHub Repository’s issue page.
+Resolution Process: Issues will be categorized based on their impact on the project, with priority given to those affecting the "Emotion Engine" logic or application stability. The team will ensure that defects are fixed, retested, and officially closed within the Issue Log.
+Issue Log
+File: “Issue Log Reflex”
+Procurement Management
+The procurement strategy for Re:Flex focuses on utilizing internally available hardware and open-source software to minimize costs and ensure immediate availability. No external contractors or professional services will be procured for this development cycle.
+Hardware Procurement: Team members will provide their own personal computersfor development and testing.
+Software Procurement: The team will utilize the free/personal version of the Unity Editor for game development and standard communication tools like Discordor Messenger for project coordination.
+Development Servers: Version control will be managed through free hosting services like Githubto store and sync project data without additional cost.
+Asset Acquisition: Any 3D assets, textures, or sound effects not created by the technical designers will be sourced from free, royalty-free libraries or the Unity Asset Store.
+Compliance Related Planning
+The Re: Flex project will adhere to the following compliance-related processes:
+Data Privacy (Local Storage Only): To ensure player privacy, all behavioral tracking data and session statistics must be processed and stored locally on the user's computer. No data shall be transmitted to external servers or cloud-based analytics.
+Software & Asset Licensing: As the project is strictly non-commercial and has no budget, all integrated assets (art, sound, and code libraries) must be verified as "Free for Use" or
+"Creative Commons". A lot of these licenses will be maintained to ensure no copyright infringement occurs.
+Platform Compatibility: Development must comply with Windows-standard executable (.exe) requirements to ensure the application remains strictly constrained to Windows operating systems and PC peripherals.
+Operational Reliability: The software must undergo stress testing to comply with the project's internal standard of a Mean Time Between Failures (MTBF) of at least 50 hours.
+Performance Benchmarking: Background processing for the Emotion Engine must comply with "Performance Stability" standards, ensuring no visual stuttering or frame rate drops occur during the gameplay loop.
+Appendix A: Project Management Plan Approval
+The undersigned acknowledge they have reviewed the Re:FlexProject Management Plan and agree with the approach it presents. Changes to this Project Management Plan will be coordinated with and approved by the undersigned or their designated representatives.
+Signature:
+Date:
+02/26/2026
+Print Name:
+RIVERA, CARLO JAY O.
+Title:
+Student
+Role:
+Project Manager
+Signature:
+Date:
+02/26/2026
+Print Name:
+JORHO JOSEPH B. PARIÑO
+Title:
+Student
+Role:
+Backend Developer
+Signature:
+Date:
+02/26/2026
+Print Name:
+JOBERT DAMIAN P. GAMBOA
+Title:
+Student
+Role:
+Backend Developer
+Signature:
+Date:
+02/26/2026
+Print Name:
+MARK PAOLO R. MORA
+Title:
+Student
+Role:
+Frontend Developer
+Signature:
+Date:
+02/26/2026
+Print Name:
+CRAIG FRANCIS G. MELGAR
+Title:
+Student
+Role:
+Frontend Developer
+APPENDIX B: REFERENCES
+The following table summarizes the documents referenced in this document.
+Document Name and Version
+Description
+Location
+Risk log Re:Flex
+Version01.00
+Risk log for the project Re:Flex
+Risk Log Reflex.xlsx
+Issue Log Re:Flex
+Version01.00
+Issue log for the project Re:Flex
+Issue Log Reflex
+Work Breakdown Structure
+Version 01.00
+Work breakdown structure for the project Re:Flex
+WORK BREAKDOWN STRUCTURE - Re: Flex
+APPENDIX C: KEY TERMS
+The following table provides definitions for terms relevant to this document.
+Term
+Definition
+Re:Flex
+The title of the game project.
+Emotion Engine
+A custom-developed system designed to perform real-time behavioral analysis on the player to adjust gameplay difficulty and environments.
+The Mind Lab
+The specific simulation environment and level layout where the project's gameplay and data analysis take place.
+Mean Time Between Failures (MTBF)
+A project reliability standard requiring the application to maintain at least 50 hours of continuous gameplay without failure.
+2.5D
+The visual and mechanical style of the game, featuring 2D movement and combat mechanics within a 3D-feeling environment.
+Dynamic Difficulty Adjustment (DDA)
+The method by which the Emotion Engine scales NPC behavior and challenges based on player performance.

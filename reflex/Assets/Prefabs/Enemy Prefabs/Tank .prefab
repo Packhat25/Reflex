@@ -208,7 +208,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.2D.Animation.Runtime::UnityEngine.U2D.Animation.SpriteResolver
   m_CategoryHash: 0.009161512
-  m_labelHash: 1.2156158e-12
+  m_labelHash: 5.6507247e-12
   m_SpriteKey: 0
   m_SpriteHash: 732315933
 --- !u!212 &3285696197889860646
@@ -319,6 +319,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1498317325662243179}
   - component: {fileID: 8760417516949543865}
+  - component: {fileID: 7094774087673443308}
   m_Layer: 0
   m_Name: Hit Box
   m_TagString: Untagged
@@ -335,7 +336,7 @@ Transform:
   m_GameObject: {fileID: 5763557983202406707}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.27077484, y: 1.2791699, z: -0.59577847}
+  m_LocalPosition: {x: 0, y: 0, z: 1}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -354,6 +355,27 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHitbox
   enemyController: {fileID: 0}
+--- !u!65 &7094774087673443308
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5763557983202406707}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 3, y: 3, z: 4}
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &7308395376807209623
 GameObject:
   m_ObjectHideFlags: 0

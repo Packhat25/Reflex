@@ -11,7 +11,9 @@ public class WeaponManager : MonoBehaviour
     [SerializeField] private PlayerManager playerManager;
     [SerializeField] private PlayerMovementManagement playerMovement;
 
+    [SerializeField] private GameObject hitSparkPrefab; // spawned on successful hit, positioned at the hitbox's location with a slight random rotation for visual variety
     public GameObject hitboxVisual;
+    [SerializeField] private bool showHitboxVisualIndicator = false;
     public LayerMask enemyLayer;
 
     [Header("Attack Assist")]
@@ -26,6 +28,7 @@ public class WeaponManager : MonoBehaviour
     private float lastAttackTime;
     private bool startResetTime = false;
     private CharacterController playerController;
+    private Renderer[] hitboxVisualRenderers = new Renderer[0];
 
     void Start()
     {
@@ -43,13 +46,39 @@ public class WeaponManager : MonoBehaviour
         if (playerManager.weaponData != null && playerManager.weaponData.weaponOverride != null)
         {
             playerVisuals.SwapWeaponAnimations(playerManager.weaponData.weaponOverride);
+            
         }
+
+        RefreshHitboxVisualRenderers();
+        SetHitboxVisualIndicatorVisible(false);
     }
 
     public void EquipWeapon(WeaponData newData)
     {
+        EquipWeaponInternal(newData, true);
+        InGameUIManager.Instance.UpdateWeaponIcon(newData.weaponIcon);
+    }
+
+    public void EquipWeaponFromSave(WeaponData newData)
+    {
+        EquipWeaponInternal(newData, false);
+        InGameUIManager.Instance.UpdateWeaponIcon(newData.weaponIcon);
+    }
+
+    private void EquipWeaponInternal(WeaponData newData, bool persistToSave)
+    {
+        if (newData == null)
+        {
+            return;
+        }
+
         // 1. Update the data reference in PlayerManager
         playerManager.weaponData = newData;
+
+        if (persistToSave && SaveManager.Instance != null)
+        {
+            SaveManager.Instance.SetEquippedWeapon(newData.weaponName);
+        }
 
         // 2. Reset combo state to prevent errors
         playerManager.currentComboIndex = 0;
@@ -59,6 +88,7 @@ public class WeaponManager : MonoBehaviour
         if (newData.weaponOverride != null)
         {
             playerVisuals.SwapWeaponAnimations(newData.weaponOverride);
+            InGameUIManager.Instance.UpdateWeaponIcon(newData.weaponIcon);
         }
 
         Debug.Log($"<color=cyan>Weapon Swapped to {newData.weaponName}!</color>");
@@ -161,6 +191,11 @@ public class WeaponManager : MonoBehaviour
 
     private void UpdateHitboxTransform(AttackStep step)
     {
+        if (hitboxVisual == null)
+        {
+            return;
+        }
+
         hitboxVisual.transform.localScale = new Vector3(step.attackWidth, step.verticalScale, step.attackRange);
         hitboxVisual.transform.localPosition = new Vector3(0, 0, step.attackRange / 2f);
     }
@@ -169,18 +204,47 @@ public class WeaponManager : MonoBehaviour
     //             v
     public void HitboxOn()
     {
-        if (playerMovement.isDashing)
+        if (playerManager == null)
+        {
+            return;
+        }
+
+        if (playerMovement != null && playerMovement.isDashing)
         {
             HitboxOff();
             return;
         }
-        hitboxVisual.SetActive(true);
+
+        WeaponData weaponData = playerManager.weaponData;
+        if (weaponData == null || weaponData.comboChain == null || weaponData.comboChain.Length == 0)
+        {
+            Debug.LogWarning("HitboxOn skipped because no valid weapon combo data is available.");
+            HitboxOff();
+            return;
+        }
+
+        int comboStepIndex = playerManager.currentComboIndex - 1;
+        if (comboStepIndex < 0 || comboStepIndex >= weaponData.comboChain.Length)
+        {
+            Debug.LogWarning($"HitboxOn skipped due to invalid combo index {playerManager.currentComboIndex} for combo length {weaponData.comboChain.Length}.");
+            HitboxOff();
+            return;
+        }
+
+        if (hitboxVisual == null)
+        {
+            return;
+        }
+
+        SetHitboxVisualActive(true);
         Vector3 center = hitboxVisual.transform.position;
         Vector3 halfExtents = hitboxVisual.transform.lossyScale / 2f;
         Quaternion orientation = hitboxVisual.transform.rotation;
 
         Collider[] hitEnemies = Physics.OverlapBox(center, halfExtents, orientation, enemyLayer);
-        AttackStep step = playerManager.weaponData.comboChain[playerManager.currentComboIndex - 1];
+        AttackStep step = weaponData.comboChain[comboStepIndex];
+        CameraManager.Instance.StartCoroutine(CameraManager.Instance.ShakeCamera(step.cameraShakeIntensity, step.cameraShakeDuration));
+        Debug.Log("Camera Shake Intensity: " + step.cameraShakeIntensity + ", Duration: " + step.cameraShakeDuration + ", Frequency: " + step.cameraShakeFrequency);
         float finalDamage = step.attackDamage * playerManager.TotalDamageMultiplier;
         float attackStunDuration = step.attackStunDuration;
         //chance for crit
@@ -192,12 +256,38 @@ public class WeaponManager : MonoBehaviour
 
         foreach (Collider enemy in hitEnemies)
         {
-            // Apply finalDamage to enemy logic here...
-            EnemyHurtbox hurtbox = enemy.GetComponent<EnemyHurtbox>();
-            if (hurtbox != null)
+            EnemyHurtbox enemyHurtbox = enemy.GetComponent<EnemyHurtbox>();
+            if (enemyHurtbox != null)
             {
-                hurtbox.ReceiveDamage(finalDamage, attackStunDuration);
+                // 1. Calculate the direction from player to enemy
+                Vector3 knockbackDirection = (enemy.transform.position - transform.position).normalized;
+                knockbackDirection.y = 0; // Keep it on a flat 2D plane
+
+                // 2. Multiply direction by your attack step's force configuration
+                float knockbackForce = step.attackKnockbackForce; // Ensure this field exists in AttackStep
+                Vector3 finalKnockbackVector = knockbackDirection * knockbackForce;
+
+                // 3. Pass it to the hurtbox (Update your ReceiveDamage signature to accept this)
+                enemyHurtbox.ReceiveDamage(finalDamage, attackStunDuration, finalKnockbackVector);
+                
+                EmotionEngine.Instance.RecordEnemyHit(finalDamage, enemyHurtbox.enemyController);
+
+                if (hitSparkPrefab != null)
+                {
+                    GameObject hitSpark = Instantiate(hitSparkPrefab, enemy.ClosestPoint(center), Quaternion.Euler(0, Random.Range(0, 360), 0));
+                    Destroy(hitSpark, 1.5f);
+                }
+            }
+            BossHurt bossHurt = enemy.GetComponent<BossHurt>();
+            if (bossHurt != null)
+            {
+                bossHurt.HandleHurt(finalDamage);
                 EmotionEngine.Instance.RecordEnemyHit(finalDamage);
+                if (hitSparkPrefab != null)
+                {
+                    GameObject hitSpark = Instantiate(hitSparkPrefab, enemy.ClosestPoint(center), Quaternion.Euler(0, Random.Range(0, 360), 0));
+                    Destroy(hitSpark, 1.5f);
+                }
             }
 
             // VAMPIRIC FOCUS (Heal on Hit)
@@ -207,12 +297,20 @@ public class WeaponManager : MonoBehaviour
                 Debug.Log("<color=green>Healed 1 HP!</color>");
             }
         }
-
     }
 
     public void HitboxOff()
     {
-        hitboxVisual.SetActive(false);
+        if (hitboxVisual != null)
+        {
+            SetHitboxVisualActive(false);
+        }
+
+        if (playerManager == null)
+        {
+            return;
+        }
+
         playerManager.canAttack = true;
 
         StartResetTime();
@@ -227,7 +325,7 @@ public class WeaponManager : MonoBehaviour
 
         if (hitboxVisual != null)
         {
-            hitboxVisual.SetActive(false);
+            SetHitboxVisualActive(false);
         }
 
         playerManager.canAttack = true;
@@ -350,13 +448,73 @@ public class WeaponManager : MonoBehaviour
 
     public void StartResetTime()
     {
+        if (playerManager == null)
+        {
+            return;
+        }
+
+        WeaponData weaponData = playerManager.weaponData;
+        if (weaponData == null)
+        {
+            // If no weapon is equipped yet (or save data has not applied), keep combo state safe.
+            playerManager.comboTime = 0f;
+            playerManager.currentComboIndex = 0;
+            return;
+        }
+
         // Base Reset Time + Card Bonus
-        playerManager.comboTime = playerManager.weaponData.comboResetTime + playerManager.cardComboWindowBonus;
+        playerManager.comboTime = weaponData.comboResetTime + playerManager.cardComboWindowBonus;
+    }
+
+    private void SetHitboxVisualActive(bool active)
+    {
+        if (hitboxVisual == null)
+        {
+            return;
+        }
+
+        hitboxVisual.SetActive(active);
+        SetHitboxVisualIndicatorVisible(active && showHitboxVisualIndicator);
+    }
+
+    private void RefreshHitboxVisualRenderers()
+    {
+        hitboxVisualRenderers = hitboxVisual != null
+            ? hitboxVisual.GetComponentsInChildren<Renderer>(true)
+            : new Renderer[0];
+    }
+
+    private void SetHitboxVisualIndicatorVisible(bool visible)
+    {
+        if (hitboxVisual == null)
+        {
+            return;
+        }
+
+        if (hitboxVisualRenderers == null || hitboxVisualRenderers.Length == 0)
+        {
+            RefreshHitboxVisualRenderers();
+        }
+
+        for (int i = 0; i < hitboxVisualRenderers.Length; i++)
+        {
+            Renderer hitboxRenderer = hitboxVisualRenderers[i];
+            if (hitboxRenderer != null)
+            {
+                hitboxRenderer.enabled = visible;
+            }
+        }
+    }
+
+    private void OnValidate()
+    {
+        RefreshHitboxVisualRenderers();
+        SetHitboxVisualIndicatorVisible(hitboxVisual != null && hitboxVisual.activeSelf && showHitboxVisualIndicator);
     }
 
     private void OnDrawGizmos()
     {
-        if (hitboxVisual != null && hitboxVisual.activeInHierarchy)
+        if (showHitboxVisualIndicator && hitboxVisual != null && hitboxVisual.activeInHierarchy)
         {
             Gizmos.color = Color.yellow;
             Gizmos.matrix = hitboxVisual.transform.localToWorldMatrix;

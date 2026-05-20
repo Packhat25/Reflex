@@ -2,6 +2,7 @@ using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections;
+using System.Collections.Generic;
 
 public class PlayerMovementManagement : MonoBehaviour
 {
@@ -15,6 +16,10 @@ public class PlayerMovementManagement : MonoBehaviour
     [SerializeField] private float rotationSpeed = 10f;
     [SerializeField] private LayerMask dashCollisionMask = ~0; // Ensure this excludes the Player layer
     [SerializeField] private float dashCollisionBuffer = 0.05f;
+
+    [Header("Hazard Detection")]
+    [SerializeField] private LayerMask dashHazardMask = ~0;
+    [SerializeField] private float dashHazardCheckBuffer = 0.1f;
     
     [Header("VFX")]
     public TrailRenderer dashTrail;
@@ -25,20 +30,44 @@ public class PlayerMovementManagement : MonoBehaviour
     private bool isSprinting;
     private bool isOnGround;
     public bool isDashing = false;
+    public bool isKnockedBack { get; private set; }
     private float lastDashTime;
+    private Coroutine knockbackRoutine;
+    private float nextHazardKnockbackTime;
+    private readonly Collider[] dashHazardResults = new Collider[16];
+    private readonly List<Collider> ignoredDashColliders = new List<Collider>();
+    private readonly HashSet<Collider> ignoredDashColliderSet = new HashSet<Collider>();
+    private int activeDashOriginalLayer = -1;
     private PlayerInput userInput;
     private InputAction moveAction;
     private InputAction dashAction;
     private InputAction sprintAction;
 
+    private void Awake()
+    {
+        int dashingPlayerLayer = LayerMask.NameToLayer("DashingPlayer");
+        int enemyLayer = LayerMask.NameToLayer("Enemy");
+
+        if (dashingPlayerLayer >= 0 && enemyLayer >= 0)
+        {
+            Physics.IgnoreLayerCollision(dashingPlayerLayer, enemyLayer, true);
+        }
+    }
+
+    private void OnDisable()
+    {
+        RestoreDashPassThroughCollisions();
+
+        if (activeDashOriginalLayer >= 0)
+        {
+            gameObject.layer = activeDashOriginalLayer;
+            activeDashOriginalLayer = -1;
+        }
+    }
+
     void Start()
     {
-
-        userInput = GetComponent<PlayerInput>();
-        if (weaponManager == null)
-        {
-            weaponManager = GetComponent<WeaponManager>();
-        }
+        RefreshSceneReferences();
 
         // Initialize and Enable Actions
         moveAction = userInput.actions.FindAction("Move");
@@ -48,15 +77,24 @@ public class PlayerMovementManagement : MonoBehaviour
         moveAction.Enable();
         dashAction.Enable();
         sprintAction?.Enable();
-        dashTrail.emitting = false;
+        if (dashTrail != null) dashTrail.emitting = false;
+    }
+
+    public void RefreshSceneReferences()
+    {
+        if (userInput == null) userInput = GetComponent<PlayerInput>();
+        if (weaponManager == null) weaponManager = GetComponent<WeaponManager>();
+        if (playerController == null) playerController = GetComponent<CharacterController>();
+        if (playerManager == null) playerManager = GetComponent<PlayerManager>();
+        camera = FindFirstObjectByType<CinemachinePositionComposer>();
     }
 
     void Update()
     {
-        if (isDashing) return;
+        if (isDashing || isKnockedBack) return;
 
         ReadInputs();
-        if (isDashing) return;
+        if (isDashing || isKnockedBack) return;
 
         if (playerManager.isAttacking)
         {
@@ -91,11 +129,16 @@ public class PlayerMovementManagement : MonoBehaviour
     }
     private IEnumerator PerformDash()
     {
-        weaponManager.HitboxOff();
+        weaponManager?.HitboxOff();
         isDashing = true;
         lastDashTime = Time.time;
         int originalLayer = gameObject.layer;
-        gameObject.layer = LayerMask.NameToLayer("DashingPlayer");
+        activeDashOriginalLayer = originalLayer;
+        int dashingPlayerLayer = LayerMask.NameToLayer("DashingPlayer");
+        if (dashingPlayerLayer >= 0)
+        {
+            gameObject.layer = dashingPlayerLayer;
+        }
 
         if (dashTrail != null) dashTrail.emitting = true;
 
@@ -105,59 +148,96 @@ public class PlayerMovementManagement : MonoBehaviour
         float totalDashSpeed = movementVariables.dashSpeed + playerManager.cardDashDistanceBonus;
         float dashDuration = movementVariables.dashDuration;
         float totalDashDistance = totalDashSpeed * dashDuration;
-
-        // PHASE LOGIC: Check if the end position is clear.
-        // If it is clear, we phase through everything in between.
-        // If it's blocked, the obstacle is "thicker" than our dash, so we collide normally.
-        bool canPhase = !IsDestinationBlocked(dashDir, totalDashDistance);
+        PrepareDashPassThroughCollisions(dashDir, totalDashDistance + dashCollisionBuffer);
 
         float startTime = Time.time;
-        while (Time.time < startTime + dashDuration)
+        while (Time.time < startTime + dashDuration && !isKnockedBack)
         {
             Vector3 dashStep = dashDir * totalDashSpeed * Time.deltaTime;
-            
-            if (canPhase)
+
+            if (TryTriggerDashHazard(dashDir, dashStep.magnitude + dashHazardCheckBuffer))
             {
-                // Rely on the Physics Matrix (DashingPlayer vs Obstacles) to glide through.
-                playerController.Move(dashStep);
+                break;
             }
-            else
-            {
-                // Manual collision check to stop in front of thick obstacles.
-                CollisionFlags collisionFlags = MoveDashStep(dashStep);
-                if ((collisionFlags & CollisionFlags.Sides) != 0) break;
-            }
+
+            PrepareDashPassThroughCollisions(dashDir, dashStep.magnitude + dashCollisionBuffer);
+            CollisionFlags collisionFlags = MoveDashStep(dashStep);
+            if ((collisionFlags & CollisionFlags.Sides) != 0) break;
 
             yield return null;
         }
 
         if (dashTrail != null) dashTrail.emitting = false;
+        RestoreDashPassThroughCollisions();
         gameObject.layer = originalLayer;
+        activeDashOriginalLayer = -1;
         isDashing = false;
-        currentVelocity = dashDir * GetCurrentSpeed();
+        currentVelocity = isKnockedBack ? Vector3.zero : dashDir * GetCurrentSpeed();
     }
 
-    private bool IsDestinationBlocked(Vector3 direction, float distance)
+    public void ApplyKnockback(Vector3 direction, float distance, float duration)
     {
-        Vector3 targetPos = transform.position + direction * distance;
-        Vector3 center = targetPos + playerController.center;
+        TryStartKnockback(direction, distance, duration);
+    }
 
-        float radius = playerController.radius;
-        float halfHeight = playerController.height * 0.5f;
-        float offset = Mathf.Max(0, halfHeight - radius);
-        
-        // Offset the bottom slightly to avoid hitting the floor.
-        float verticalBuffer = playerController.stepOffset;
-        Vector3 top = center + Vector3.up * offset;
-        Vector3 bottom = center - Vector3.up * (offset - verticalBuffer);
-        
-        Collider[] hits = Physics.OverlapCapsule(bottom, top, radius * 0.9f, dashCollisionMask, QueryTriggerInteraction.Ignore);
-        
-        foreach (var hit in hits)
+    public bool TryApplyHazardKnockback(Vector3 direction, float distance, float duration, float cooldown, bool ignoreCooldown = false)
+    {
+        if (isKnockedBack || (!ignoreCooldown && Time.time < nextHazardKnockbackTime))
         {
-            if (hit.transform != transform && !hit.transform.IsChildOf(transform)) return true;
+            return false;
         }
-        return false;
+
+        if (!TryStartKnockback(direction, distance, duration))
+        {
+            return false;
+        }
+
+        nextHazardKnockbackTime = Time.time + Mathf.Max(cooldown, duration);
+        return true;
+    }
+
+    private bool TryStartKnockback(Vector3 direction, float distance, float duration)
+    {
+        if (!isActiveAndEnabled || playerController == null)
+        {
+            return false;
+        }
+
+        direction.y = 0f;
+        if (direction.sqrMagnitude <= 0.0001f)
+        {
+            return false;
+        }
+
+        if (knockbackRoutine != null)
+        {
+            StopCoroutine(knockbackRoutine);
+        }
+
+        knockbackRoutine = StartCoroutine(KnockbackCoroutine(direction.normalized, distance, duration));
+        return true;
+    }
+
+    private IEnumerator KnockbackCoroutine(Vector3 direction, float distance, float duration)
+    {
+        isKnockedBack = true;
+        currentVelocity = Vector3.zero;
+
+        float elapsed = 0f;
+        float safeDuration = Mathf.Max(0.01f, duration);
+        float speed = Mathf.Max(0f, distance) / safeDuration;
+
+        while (elapsed < safeDuration)
+        {
+            float remainingTime = safeDuration - elapsed;
+            float stepTime = Mathf.Min(Time.deltaTime, remainingTime);
+            playerController.Move(direction * speed * stepTime);
+            elapsed += stepTime;
+            yield return null;
+        }
+
+        isKnockedBack = false;
+        knockbackRoutine = null;
     }
 
     private CollisionFlags MoveDashStep(Vector3 movement)
@@ -184,12 +264,12 @@ public class PlayerMovementManagement : MonoBehaviour
         Vector3 bottom = center - Vector3.up * (halfHeight - radius);
         Vector3 top = center + Vector3.up * (halfHeight - radius);
 
-        RaycastHit[] hits = Physics.CapsuleCastAll(bottom, top, radius, direction, distance + dashCollisionBuffer, dashCollisionMask, QueryTriggerInteraction.Ignore);
+        RaycastHit[] hits = Physics.CapsuleCastAll(bottom, top, radius, direction, distance + dashCollisionBuffer, GetDashCollisionMask(), QueryTriggerInteraction.Ignore);
         float closest = Mathf.Infinity;
 
         foreach (var hit in hits)
         {
-            if (hit.collider.transform == transform || hit.collider.transform.IsChildOf(transform)) continue;
+            if (ShouldIgnoreDashCollision(hit.collider)) continue;
             if (hit.distance < closest) closest = hit.distance;
         }
 
@@ -198,10 +278,250 @@ public class PlayerMovementManagement : MonoBehaviour
         return true;
     }
 
+    private bool TryTriggerDashHazard(Vector3 incomingDirection, float castDistance)
+    {
+        if (playerManager == null || playerController == null)
+        {
+            return false;
+        }
+
+        if (TryTriggerOverlappingHazard(incomingDirection))
+        {
+            return true;
+        }
+
+        if (castDistance <= 0f || incomingDirection.sqrMagnitude <= 0.0001f)
+        {
+            return false;
+        }
+
+        GetControllerCapsuleAt(transform.position, out Vector3 bottom, out Vector3 top, out float radius);
+        RaycastHit[] hits = Physics.CapsuleCastAll(bottom, top, radius, incomingDirection.normalized, castDistance, dashHazardMask, QueryTriggerInteraction.Collide);
+        LazerKnockback closestHazard = null;
+        DmgArea closestDamageArea = null;
+        TrapStateController closestStateController = null;
+        float closestDistance = Mathf.Infinity;
+        float closestDamageDistance = Mathf.Infinity;
+        float closestStateDistance = Mathf.Infinity;
+
+        foreach (RaycastHit hit in hits)
+        {
+            if (hit.collider == null || !hit.collider.isTrigger || IsOwnCollider(hit.collider))
+            {
+                continue;
+            }
+
+            DmgArea damageArea = hit.collider.GetComponentInParent<DmgArea>();
+            if (damageArea != null && hit.distance < closestDamageDistance)
+            {
+                closestDamageArea = damageArea;
+                closestDamageDistance = hit.distance;
+            }
+
+            TrapStateController stateController = hit.collider.GetComponentInParent<TrapStateController>();
+            if (stateController == null && hit.collider.TryGetComponent(out TrapPassThroughTrigger passThroughTrigger))
+            {
+                stateController = passThroughTrigger.Controller;
+            }
+
+            if (stateController != null && hit.distance < closestStateDistance)
+            {
+                closestStateController = stateController;
+                closestStateDistance = hit.distance;
+            }
+
+            LazerKnockback hazard = hit.collider.GetComponentInParent<LazerKnockback>();
+            if (hazard == null || hit.distance >= closestDistance)
+            {
+                continue;
+            }
+
+            closestHazard = hazard;
+            closestDistance = hit.distance;
+        }
+
+        closestDamageArea?.TryApplyDashDamage(playerManager);
+        bool appliedKnockback = closestHazard != null && closestHazard.TryKnockback(playerManager, incomingDirection, true);
+        if (!appliedKnockback)
+        {
+            closestStateController?.NotifyPlayerPassedThrough(playerManager);
+        }
+
+        return appliedKnockback;
+    }
+
+    private bool TryTriggerOverlappingHazard(Vector3 incomingDirection)
+    {
+        GetControllerCapsuleAt(transform.position, out Vector3 bottom, out Vector3 top, out float radius);
+        int hitCount = Physics.OverlapCapsuleNonAlloc(bottom, top, radius, dashHazardResults, dashHazardMask, QueryTriggerInteraction.Collide);
+        LazerKnockback closestHazard = null;
+        DmgArea closestDamageArea = null;
+        TrapStateController closestStateController = null;
+        float closestDistance = Mathf.Infinity;
+        float closestDamageDistance = Mathf.Infinity;
+        float closestStateDistance = Mathf.Infinity;
+        Vector3 center = transform.TransformPoint(playerController.center);
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            Collider hit = dashHazardResults[i];
+            dashHazardResults[i] = null;
+
+            if (hit == null || !hit.isTrigger || IsOwnCollider(hit))
+            {
+                continue;
+            }
+
+            DmgArea damageArea = hit.GetComponentInParent<DmgArea>();
+            float distance = (hit.ClosestPoint(center) - center).sqrMagnitude;
+
+            if (damageArea != null && distance < closestDamageDistance)
+            {
+                closestDamageArea = damageArea;
+                closestDamageDistance = distance;
+            }
+
+            TrapStateController stateController = hit.GetComponentInParent<TrapStateController>();
+            if (stateController == null && hit.TryGetComponent(out TrapPassThroughTrigger passThroughTrigger))
+            {
+                stateController = passThroughTrigger.Controller;
+            }
+
+            if (stateController != null && distance < closestStateDistance)
+            {
+                closestStateController = stateController;
+                closestStateDistance = distance;
+            }
+
+            LazerKnockback hazard = hit.GetComponentInParent<LazerKnockback>();
+            if (hazard == null)
+            {
+                continue;
+            }
+
+            if (distance >= closestDistance)
+            {
+                continue;
+            }
+
+            closestHazard = hazard;
+            closestDistance = distance;
+        }
+
+        closestDamageArea?.TryApplyDashDamage(playerManager);
+        bool appliedKnockback = closestHazard != null && closestHazard.TryKnockback(playerManager, incomingDirection, true);
+        if (!appliedKnockback)
+        {
+            closestStateController?.NotifyPlayerPassedThrough(playerManager);
+        }
+
+        return appliedKnockback;
+    }
+
+    private void GetControllerCapsuleAt(Vector3 position, out Vector3 bottom, out Vector3 top, out float radius)
+    {
+        Vector3 center = position + transform.TransformVector(playerController.center);
+        radius = Mathf.Max(0.01f, playerController.radius);
+        float halfHeight = Mathf.Max(radius, playerController.height * 0.5f);
+        float verticalOffset = halfHeight - radius;
+
+        bottom = center - Vector3.up * verticalOffset;
+        top = center + Vector3.up * verticalOffset;
+    }
+
+    private bool IsOwnCollider(Collider hit)
+    {
+        return hit.transform == transform || hit.transform.IsChildOf(transform);
+    }
+
+    private int GetDashCollisionMask()
+    {
+        int mask = dashCollisionMask.value;
+        RemoveLayerFromMask(ref mask, gameObject.layer);
+        RemoveLayerFromMask(ref mask, LayerMask.NameToLayer("Player"));
+        RemoveLayerFromMask(ref mask, LayerMask.NameToLayer("DashingPlayer"));
+        RemoveLayerFromMask(ref mask, LayerMask.NameToLayer("Enemy"));
+        return mask;
+    }
+
+    private static void RemoveLayerFromMask(ref int mask, int layer)
+    {
+        if (layer < 0) return;
+        mask &= ~(1 << layer);
+    }
+
+    private bool ShouldIgnoreDashCollision(Collider hit)
+    {
+        if (hit == null || IsOwnCollider(hit))
+        {
+            return true;
+        }
+
+        return IsEnemyCollider(hit);
+    }
+
+    private static bool IsEnemyCollider(Collider hit)
+    {
+        return hit.CompareTag("Enemy") || hit.GetComponentInParent<EnemyController>() != null;
+    }
+
+    private void PrepareDashPassThroughCollisions(Vector3 direction, float distance)
+    {
+        if (playerController == null)
+        {
+            return;
+        }
+
+        GetControllerCapsuleAt(transform.position, out Vector3 bottom, out Vector3 top, out float radius);
+        Collider[] overlappingHits = Physics.OverlapCapsule(bottom, top, radius, ~0, QueryTriggerInteraction.Collide);
+        for (int i = 0; i < overlappingHits.Length; i++)
+        {
+            TryIgnoreDashCollider(overlappingHits[i]);
+        }
+
+        if (distance <= 0f || direction.sqrMagnitude <= 0.0001f)
+        {
+            return;
+        }
+
+        RaycastHit[] pathHits = Physics.CapsuleCastAll(bottom, top, radius, direction.normalized, distance, ~0, QueryTriggerInteraction.Collide);
+        for (int i = 0; i < pathHits.Length; i++)
+        {
+            TryIgnoreDashCollider(pathHits[i].collider);
+        }
+    }
+
+    private void TryIgnoreDashCollider(Collider hit)
+    {
+        if (hit == null || IsOwnCollider(hit) || !IsEnemyCollider(hit) || !ignoredDashColliderSet.Add(hit))
+        {
+            return;
+        }
+
+        Physics.IgnoreCollision(playerController, hit, true);
+        ignoredDashColliders.Add(hit);
+    }
+
+    private void RestoreDashPassThroughCollisions()
+    {
+        for (int i = 0; i < ignoredDashColliders.Count; i++)
+        {
+            Collider ignoredCollider = ignoredDashColliders[i];
+            if (ignoredCollider != null && playerController != null)
+            {
+                Physics.IgnoreCollision(playerController, ignoredCollider, false);
+            }
+        }
+
+        ignoredDashColliders.Clear();
+        ignoredDashColliderSet.Clear();
+    }
+
     private void MovePlayer()
     {
         // 1. Get the direction relative to your 2.5D camera view using your static logic
-        Vector3 moveDirection = CameraDirectionLogic.GetRelativeDirection(moveInput, Camera.main);
+        Camera mainCamera = Camera.main;
+        Vector3 moveDirection = CameraDirectionLogic.GetRelativeDirection(moveInput, mainCamera);
         Vector3 targetVelocity = moveDirection * GetCurrentSpeed();
 
         isOnGround = playerController.isGrounded;
@@ -266,6 +586,11 @@ public class PlayerMovementManagement : MonoBehaviour
 
     private void FOVChangeWhenRunning()
     {
+        if (camera == null)
+        {
+            return;
+        }
+
         camera.DeadZoneDepth = isSprinting ? movementVariables.deadZone : 0.0f;
     }
 }

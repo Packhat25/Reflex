@@ -1,0 +1,152 @@
+﻿Re:Flex
+Software Design Document
+Version 01.00
+Revision History
+Date
+Version
+Description
+Author
+02/26/2026
+1.0
+Initial File Creation and Draft
+Rivera, Carlo Jay, O.
+Parino, Jorho Joseph B
+Gamboa, Jobert Damian P.
+Mora, Mark Paolo R.
+Melgar, Craig Francis G.
+Table of Contents
+1.INTRODUCTION4
+1.1Purpose4
+1.2Scope4
+1.3Overview4
+1.4Reference Material4
+1.5Definitions and Acronyms4
+2.SYSTEM OVERVIEW5
+3.SYSTEM ARCHITECTURE5
+3.1Architectural Design5
+3.2Decomposition Description5
+3.3Design Rationale5
+4.DATA DESIGN6
+4.1Data Description6
+4.2Data Dictionary6
+5.COMPONENT DESIGN6
+6.HUMAN INTERFACE DESIGN7
+6.1Overview of User Interface7
+6.2Screen Images7
+6.3Screen Objects and Actions7
+7.REQUIREMENTS MATRIX8
+Software Design Document
+INTRODUCTION
+Purpose
+This Software Design Document (SDD) describes the architecture and system design of Re:Flex. It serves as a technical guide for developers and designers to implement the behavioral analysis system and dynamic difficulty adjustment mechanisms defined in the SRS.
+Scope
+Re:Flex is a 2.5D action game designed to explore player psychology through an Emotion Engine. The system tracks player metrics like damage taken and movement speed within a simulation titled “THE MIND LAB” to categorize states as "Aggressive" or "Calm". The project aims to deliver a stable PC experience that adapts NPC behavior and level layouts in real-time.
+Overview
+This document is organized into sections covering system architecture, detailed data design for behavioral tracking, component-level logic for the Emotion Engine, and human interface designs for the 2.5D environment.
+Reference Material
+Software Requirements Specification (SRS), Version 1.0
+Software Project Management Plan (SPMP), Version 1.0.
+Definitions and Acronyms
+DDA (Dynamic Difficulty Adjustment): Modifying game difficulty in real-time based on player ability.
+Emotion Engine: The background system used to calculate and categorize player behavior into emotional states.
+MTBF (Mean Time Between Failures): A reliability standard requiring at least 50 hours of continuous gameplay.
+SYSTEM OVERVIEW
+Re:Flex functions as a digital psychological simulation. The core loop involves the system re-evaluating the player's state every 30–60 seconds based on metrics such as speed, damage taken, and death count. This evaluation triggers procedural level modifications and changes in NPC combat patterns.
+SYSTEM ARCHITECTURE
+Architectural Design
+The system is partitioned into high-level modules to manage the 2.5D gameplay and background analysis:
+Core Engine: Manages 2.5D movement, combat mechanics, and kinematic actions like jumping and dashing.
+Emotion Engine: Implements algorithms for state detection ("Aggressive" vs. "Calm") based on real-time metric analysis.
+Environment Module: Handles the creation of "Mind Lab" layouts and procedural adaptation of NPC behavior.
+Data Layer: Provides local storage for session data and behavioral tracking to ensure player privacy.
+Wireframe image:
+Low fidelity screenshot:
+Main Menu Screen Drafts:
+Character Drafts
+Decomposition Description
+Design Rationale
+Selection of the 2.5D Perspective: The choice of a 2.5D action game style was made to provide a familiar mechanical foundation for players.
+Minimal Learning Curve: By using standard movement and combat configurations, the team ensures that the Emotion Engine tracks genuine behavioral patterns rather than errors caused by player confusion with the controls.
+Visual Clarity: This perspective allows the HUD to provide non-intrusive feedback, ensuring environmental cues from the AI adaptation remain visible to the user.
+The Emotion Engine & DDA: The core of the project is the Dynamic Difficulty Adjustment (DDA) powered by the Emotion Engine.
+Psychological Exploration: The engine is designed to go beyond traditional performance tracking by categorizing players into "Aggressive" or "Calm" states based on metrics like speed and damage taken.
+Periodic Re-evaluation: The system re-evaluates the player periodically. This specific timeframe was chosen to ensure the difficulty remains adaptive to current performance without causing erratic, constant changes in NPC behavior.
+Local Data Processing & Privacy: A critical design decision was to implement strictly local data storage and processing.
+Player Privacy: By avoiding cloud-based analytics, the project ensures that sensitive behavioral tracking data never leaves the user's machine.
+Data Integrity: Local processing allows for file validation logic to be integrated, preventing manual modification of behavioral data and keeping the final "Psychological Profile" authentic.
+Technical Reliability: The project adheres to a strict Mean Time Between Failures (MTBF) of 50 hours.
+Stability over Complexity: This constraint ensures that background metric tracking does not cause memory leaks or visual stuttering, which would negatively impact the accuracy of the emotional analysis.
+Single-Player Constraint: The system is strictly limited to single-player gameplay.
+Metric Accuracy: Introducing multiple players would corrupt the individual tracking metrics, such as "Number of enemies approached," making it impossible for the Emotion Engine to generate an accurate psychological profile for a specific user.
+DATA DESIGN
+Data Description
+Behavioral tracking data is stored locally on the user's computer. The system processes raw metrics (damage, speed, idle time) into a categorized "Emotional State". File validation logic is integrated to prevent manual modification of these data structures.
+Data Dictionary
+Entity
+Type
+Description
+DamageTaken
+Integer
+Cumulative damage received by the player during a 30-60 second window.
+MovementSpeed
+Float
+Average velocity of the player character.
+PlayerState
+Enum
+Categorization: "Aggressive" or "Calm".
+AggroRadius
+Float
+The distance at which an NPC detects and engages the player.
+COMPONENT DESIGN
+This section details the internal logic and class structures for the core modules.
+5.1Emotion Engine Component (EEC)
+The EEC is the central intelligence unit. It acts as a "Listener" to the Player Controller and an "Observer" to the Game Manager.
+Class Attributes:
+float currentSpeed: Real-time velocity of the player.
+int damageThreshold: The limit before a state shift is triggered.
+enumCurrentState: [Calm, Aggressive, Neutral].
+Detailed Logic (Flow): The EEC uses a Weighted Scoring Algorithm. It doesn't just look at one hit; it looks at the frequency of inputs over a 45-second "Decision Window."
+5.2 NPC State Machine (NSM)
+Instead of simple "If/Else" logic, the NPCs operate on a Finite State Machine (FSM). Their behavior is a direct output of the Emotion Engine's state.
+State
+Trigger
+Behavior Change
+Passive
+Emotion Engine = "Calm"
+NPC stays on patrol paths; reduced vision cone.
+Aggressive
+Emotion Engine = "Aggressive"
+NPC ignores patrol; moves directly toward player coordinates.
+Evasive
+Player Health > 80%
+NPC maintains distance and uses ranged attacks.
+5.3Level Procedural Controller (LPC)
+The LPC manages the "Mind Lab" environment. It utilizes a Prefab Pooling System to swap room segments without breaking the 2.5D perspective.
+Logic: When StateChange event is fired, the LPC identifies "Transition Rooms" (corridors) to load the next environment type (e.g., shifting from high-platforming puzzles to combat arenas).
+HUMAN INTERFACE DESIGN
+Overview of User Interface
+The GUI includes a main menu, pause menu, and a final psychological profile report exported at the conclusion of the game. The HUD is designed to be non-intrusive, ensuring environmental cues remain visible for the player.
+Screen Images
+Display screenshots showing the interface from the user’s perspective. These can be hand­ drawn or you can use an automated drawing tool.  Just make them as accurate as possible. (Graph paper works well.)
+Screen Objects and Actions
+Movement Controls: Standardkeyboard/mouse inputs for 2.5D navigation
+Menu Navigation: Standard PC peripheral interaction for settings and navigation.
+REQUIREMENTS MATRIX
+Component
+Requirement Code (SRS)
+Description
+Emotion Engine
+3.1.2
+Determine emotional state through metrics.
+NPC AI
+3.1.1
+Adjust combat patterns and aggression.
+Procedural Layouts
+3.1.3
+Change level structure based on state.
+Local Storage
+3.5.1
+Process and store data locally for privacy.
+Movement System
+3.1.4
+Translate PC inputs to 2.5D movement.

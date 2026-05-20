@@ -7,11 +7,21 @@ public class PatrolState : IEnemyState
 
     public PatrolState(EnemyController enemy) => _enemy = enemy;
 
+    private bool HasNavigableAgent()
+    {
+        return _enemy.agent != null && _enemy.agent.isActiveAndEnabled && _enemy.agent.isOnNavMesh;
+    }
+
     public void OnEnter()
     {
         if (_enemy.spriteRenderer != null)
         {
             _enemy.spriteRenderer.color = Color.white;
+        }
+
+        if (!HasNavigableAgent())
+        {
+            return;
         }
 
         EnemyController elite = SwarmManager.GetElite(_enemy.enemyType);
@@ -46,6 +56,11 @@ public class PatrolState : IEnemyState
         if (_enemy.CanSeePlayer())
         {
             _enemy.ChangeState(new ChaseState(_enemy));
+            return;
+        }
+
+        if (!HasNavigableAgent())
+        {
             return;
         }
 
