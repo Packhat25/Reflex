@@ -21,12 +21,13 @@ public class TrapHazardIndicator : MonoBehaviour
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
 
-    private readonly MaterialPropertyBlock propertyBlock = new MaterialPropertyBlock();
+    private MaterialPropertyBlock propertyBlock;
     private Renderer[] targetRenderers = new Renderer[0];
     private Tilemap[] tilemaps = new Tilemap[0];
 
     private void OnEnable()
     {
+        EnsurePropertyBlock();
         CacheTargets();
         ApplyIndicator(1f);
     }
@@ -36,6 +37,7 @@ public class TrapHazardIndicator : MonoBehaviour
         emissionIntensity = Mathf.Max(0f, emissionIntensity);
         pulseSpeed = Mathf.Max(0f, pulseSpeed);
         floorTintStrength = Mathf.Clamp01(floorTintStrength);
+        EnsurePropertyBlock();
         CacheTargets();
         ApplyIndicator(1f);
     }
@@ -76,6 +78,11 @@ public class TrapHazardIndicator : MonoBehaviour
 
     private void ApplyIndicator(float pulse)
     {
+        if (!EnsurePropertyBlock())
+        {
+            return;
+        }
+
         Color surfaceColor = Color.Lerp(Color.white, warningColor, pulse);
         Color emission = emissionColor * (emissionIntensity * pulse);
 
@@ -102,5 +109,15 @@ public class TrapHazardIndicator : MonoBehaviour
                 tilemaps[i].color = floorColor;
             }
         }
+    }
+
+    private bool EnsurePropertyBlock()
+    {
+        if (propertyBlock == null)
+        {
+            propertyBlock = new MaterialPropertyBlock();
+        }
+
+        return propertyBlock != null;
     }
 }
