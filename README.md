@@ -1,6 +1,7 @@
 # Reflex
 
 ## 🛠 Getting Started
+- [ ] **Itch Download**: https://buck-the-company.itch.io/reflex-25-mind-lab
 
 ### Prerequisites
 To run or develop this project, you will need the following tools:
